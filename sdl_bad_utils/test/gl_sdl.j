@@ -1,17 +1,14 @@
 
 #Just tests some gl drawing and showing where the cursor is as such.
 
-load("load_so.j")
-
+load("util/load_so.j")
 load("util/util.j")
-
-load("get_c.j")
-load("sdl_bad_utils/init_stuff.j")
+load("util/get_c.j")
 
 load("autoffi/gl.j")
-load("gl_util.j")
+load("ffi_extra/gl.j")
 
-load("sdl_bad_utils/sdl_event.j")
+load("sdl_bad_utils/sdl_bad_utils.j")
 
 function run_this ()
   screen_width = 640
