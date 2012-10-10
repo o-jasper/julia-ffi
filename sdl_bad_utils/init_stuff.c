@@ -12,20 +12,6 @@ const int True = 1, False= 0;
 #include <GL/glu.h>
 #include <SDL/SDL.h>
 
-int reference_block() //Block drawn to give absolute reference somewhat.
-{
-  glColor3f(1,1,1);
-  glPushMatrix();
-    glScalef(0.5,0.5,1);
-    glBegin( GL_QUADS );
-      glVertex3f(  1.0f,  1.0f,  0.0f );
-      glVertex3f( -1.0f,  1.0f,  0.0f );
-      glVertex3f( -1.0f, -1.0f,  0.0f );
-      glVertex3f(  1.0f, -1.0f,  0.0f );
-    glEnd();
-  glPopMatrix();
-}
-
 int screen_width = 640, screen_height = 640;
 short screen_bpp = 16;
 

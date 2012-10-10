@@ -88,8 +88,8 @@ type TokType
   end
 end
 
-type TokTypedef
-  val::TokVar
+type TokTypeDef
+  val
 end
 #TODO query the type for stuff.
 
@@ -139,7 +139,8 @@ function tokenize_for_c(in::ConvenientStream, what)
         push(args_list, toklist_to_type_arg(list))
       end
       skip_white(in)
-      assert( in.line[1]==';' ) #Must be ';'-separated. # TODO { for more.
+     #TODO if not, maybe it was part of the type?
+      assert( in.line[1]==';', in ) #Must be ';'-separated. # TODO { for more.
       return args_list
     elseif next_up('{')
       push_cur() #will also handle `struct`, if there.
@@ -184,6 +185,7 @@ end
 
 function parse_toplevel_1(in::ConvenientStream)
   skip_white(in)
+  list = {}
   if begins_with(in.line, "typedef")
     forward(in, 7)
     push(list, TokTypeDef(tokenize_for_c(in, :typedef)))
@@ -198,7 +200,7 @@ function eof(stream::IOStream) #Hrmmm
   if i == position(stream) #Terrible.
     return true
   end
-  seek(i)
+  seek(stream, i)
   return false
 end
 

@@ -1,19 +1,26 @@
 #  Jasper den Ouden 02-08-2012
 # Placed in public domain.
 
+stuff_lib = load_so("sdl_bad_utils/init_stuff.so") 
+
+@get_c_fun stuff_lib auto init_stuff(Int32,Int32)::Int32
+init_stuff() = init_stuff(640,640)
+
+@get_c_fun stuff_lib auto finalize_draw()::Int32
+
 draw_funs_lib = load_so("sdl_bad_utils/sdl_event.so")
 
 @get_c_fun draw_funs_lib auto mouse_x()::Int32
 @get_c_fun draw_funs_lib auto mouse_y()::Int32
 @get_c_fun draw_funs_lib auto poll_event()::Int32
 
-function flush_events(quit_exit::Bool)
+function flush_events(quit_exit_p::Bool)
   while true
     pol = poll_event()
     if pol == SDL_EVENTS_DONE
       return
     end
-    if pol == SDL_QUIT && quit_exit
+    if pol == SDL_QUIT && quit_exit_p
       exit()
     end
   end

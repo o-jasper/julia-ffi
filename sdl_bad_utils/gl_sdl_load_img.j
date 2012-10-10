@@ -3,6 +3,7 @@
 
 sdl_lib = dlopen("libSDL")
 
+
 @get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
 @get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
 
@@ -14,10 +15,13 @@ end
 
 gl_sdl_load_img_lib = load_so("sdl_bad_utils/gl_sdl_load_img.so")
 
-@get_c_fun gl_sdl_load_img_lib auto gl_sdl_load_img(index::GLuint, surface::Ptr,
-                                                    format::GLenum, w::Int32,h::Int32)::GLuint
+@get_c_fun gl_sdl_load_img_lib auto gl_sdl_load_img(index::GLuint, 
+                                                    surface::Ptr,
+                                                    format::GLenum, 
+                                                    w::Int32,h::Int32)::GLuint
 
-function gl_sdl_load_img(surf::Ptr, format::Integer, w::Integer,h::Integer, prepare::Bool)
+function gl_sdl_load_img(surf::Ptr, format::Integer, w::Integer,h::Integer, 
+                         prepare::Bool)
   if prepare
     glenable({GL_TEXTURE_2D, GL_BLEND})
   end
