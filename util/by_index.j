@@ -2,6 +2,7 @@
 # Placed in public domain.
 
 #TODO explain what it does.
+#TODO module-ize it.
 
 type ByIndexNode{T}
   index::Int16

@@ -1,5 +1,10 @@
-load("util/util.j")
+#module TabbedDataTest
+
+load("util/util.j") #I don't wanna do it manually anymore
 load("util/tabbed_data.j")
+
+import OJasper_Util.*
+import TabbedData.*
 
 #Random tabbed file into stream.
 function make_tabbed_file(stream::IOStream, 
@@ -42,7 +47,7 @@ function test(silent::Bool)
   tree = make_tabbed_file(file, 4,4, 0.5)
   maysay(tree)
   maysay("Reading")
-  read_tree = read_tabbed_file(file)[2:]
+  read_tree = read_tabbed_data(file)[2:]
   maysay("read it;")
   maysay(read_tree)
   assert(isequal(tree,read_tree), 
@@ -52,3 +57,5 @@ end
 for i = 1:20
   test(true)
 end
+
+#end #module TabbedDataTest

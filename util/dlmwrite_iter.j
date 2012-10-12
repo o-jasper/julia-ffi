@@ -1,6 +1,14 @@
 # Jasper den Ouden  17-09-2012
 #Placed in public domain.
 
+module DlmWriteIter
+#dlmwrite for arbitrary iterators.
+
+import Base.* 
+import OJasper_Util.*
+
+#----no more module stuff.
+
 #dlmwrite, but with arbitrary iterator.
 function dlmwrite_iter{Iterable}(to::IOStream, iterable::Iterable, 
                                  delim::String,line_delim::String)
@@ -34,3 +42,5 @@ dlmwrite_any{To,Thing}(to::To, thing::Thing,
 dlmwrite_any{To,Thing}(to::To, thing::Thing, delim::String) =
     dlmwrite_any(to,thing,delim,"\n")
 dlmwrite_any{To,Thing}(to::To, thing::Thing) = dlmwrite_any(to,thing,"\t")
+
+end #module DlmWriteIter

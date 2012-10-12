@@ -1,6 +1,20 @@
 #  Jasper den Ouden 02-08-2012
 # Placed in public domain.
 
+#TODO there are `test_` functions inside, move them to correct dir
+# and run them. Also add/fix whatever needed.
+
+module Geom
+#Various geometry functions.
+
+import Base.* 
+
+export dist, line2d_cross_param, line2d_cross_p, 
+       in_range,map_to_range,
+       rand_range, rand_in_circle
+
+#----no more module stuff.
+
 dist(a,b) = dist(pos(a),pos(b))
 dist(a::Vector,b::Vector)    = norm(a-b)
 distsqr(a,b) = dist(a,b)^2
@@ -76,3 +90,5 @@ function rand_in_circle(radius_from::Number, radius_to::Number)
 end
 
 rand_in_circle(radius::Number) = rand_in_circle(0,radius)
+
+end #module Geom

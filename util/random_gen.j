@@ -1,5 +1,15 @@
 #  Jasper den Ouden 02-08-2012
-# Placed in public domain.
+# Placed in public domain
+
+module OJasper_Rgen
+#Basically random generating utils for own use.
+
+import Base.* 
+import OJasper_Util.*
+
+export pick_random,n_unique_below,all_adjacent,non_surrounded_grid
+
+#----no more module stuff.
 
 function pick_random(list::Vector)
   assert( !isempty(list), "Can't pick randomly from empty list." )
@@ -40,3 +50,5 @@ function non_surrounded_grid(n::Integer, w::Integer,h::Integer)
   end
   return arr
 end
+
+end #module VariousRgen

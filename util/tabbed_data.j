@@ -1,6 +1,15 @@
 #  Jasper den Ouden 02-08-2012
 # Placed in public domain.
 
+module TabbedData
+
+import Base.* 
+import OJasper_Util.*
+
+export read_tabbed_data
+
+#----no more module stuff.
+
 #Read data from a file that indicate nestedness with tabs.
 function read_tabbed_data(stream::IOStream, tab::String)
   line = ""
@@ -23,7 +32,8 @@ const tabbed_data_default_tab = "\t"
 read_tabbed_data{T}(stream::T) = 
     read_tabbed_data(stream,tabbed_data_default_tab)
 
-read_tabbed_file(file::String, tab::String) =
+#TODO: uhm, why `_file` ?
+read_tabbed_data(file::String, tab::String) =
     @with s=open(file,"r") read_tabbed_data(s, tab)
-read_tabbed_file(file::String) = 
-    read_tabbed_file(file,tabbed_data_default_tab)
+
+end #module TabbedData

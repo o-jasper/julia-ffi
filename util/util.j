@@ -1,6 +1,21 @@
 #  Jasper den Ouden 24-09-2012
 # Placed in public domain.
 
+module OJasper_Util
+#Utilities
+# NOTE/TODO: 
+# * At least some of these have better alternatives in standard libs?
+# * With the ones that don't, do...
+import Base.* 
+
+export isnothing,
+       @with,no_longer_with, 
+       stream_from_string,find_index,
+       last,thelast,butlast,
+       @case_of, @case,@cond
+
+#----no more module stuff.
+
 #Depreciated. TODO remove.
 isnothing(thing) = isequal(thing,nothing)
 
@@ -120,5 +135,5 @@ macro each_cond(clauses)
   end
   return esc(Expr(:block, map(when_clause, clauses.args),Any))
 end
-
-#TODO 
+ 
+end #module JasperUtil

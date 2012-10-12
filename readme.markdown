@@ -62,3 +62,8 @@ also maybe Julia will/has already increased support for FFIing those..
  + automatically created extra stuff.
  + manually created extra.
 
+# Licenses
+Are mentioned in the files. Some of it public domain, some is GPL.
+
+## Author
+Jasper den Ouden

@@ -1,5 +1,6 @@
 
 load("util/ExpandingArray.j")
+import ExpandingArrayModule.*
 
 function test1d(cnt::Integer, fr::Integer,to::Integer, arr)
   dict = {int64(0) => int64(0)} #Dictionary on one side.

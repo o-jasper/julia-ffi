@@ -1,7 +1,16 @@
 # Jasper den Ouden  16-09-2012
 #Placed in public domain.
 
-#Expanding arrays with arbitrary setting of indices.
+module ExpandingArrayModule
+#Expanding arrays with arbitrary setting of indices
+
+import Base.* 
+
+export ExpandingArray, ExpandingArray2d,
+       min_i,max_i, min_j,max_j,
+       indexless_iter, continuous_iter
+
+#----no more module stuff.
 
 #A reshape that works. (until the julia one starts working again..)
 function working_reshape{T}(arr::Array{T,1}, newlen::Integer)
@@ -130,3 +139,5 @@ function max_j{T}(arr::ExpandingArray2d{T})
   end
   return (j==typemin(Int64) ? 0 : j)
 end
+
+end #module ExpandingArrayModule
