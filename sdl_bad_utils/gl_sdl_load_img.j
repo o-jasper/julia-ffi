@@ -1,10 +1,20 @@
 #  Jasper den Ouden 16-08-2012
 # Placed in public domain.
 
+module GL_SDL_LoadImg
+#Loading images int GL and/or SDL.
+
+import Base.* 
+import GetC.*
+import AutoFFI_GL.*
+
+export sdl_free_surface, sdl_load_img, gl_sdl_load_img
+
+#----no more module stuff.
+
 sdl_lib = dlopen("libSDL")
 
-
-@get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
+#@get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
 @get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
 
 sdl_img_lib = dlopen("libSDL_image")
@@ -55,3 +65,5 @@ gl_sdl_load_img(img) = #!
 
 # NOTE: DOESN'T WORK
 #@get_c_fun gl_sdl_load_img_lib auto combine_w_alpha(surf::Ptr,alpha::Ptr,way::Uint32)::Ptr
+
+end #module GL_SDL_LoadImg

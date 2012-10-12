@@ -1,18 +1,13 @@
-#
-#  Copyright (C) 11-07-2012 Jasper den Ouden.
-#
-#  This is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published
-#  by the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
+#  Jasper den Ouden 02-08-2012
+# Placed in public domain.
 
 module GetC
 #Makes finding/loading .so files and FFI-ing C more convenient.
 
 import Base.* 
 
-export find_so_file_path, load_so, @get_c_fun
+export find_so_file_path, load_so
+export @get_c_fun
 
 #----no more module stuff.
 

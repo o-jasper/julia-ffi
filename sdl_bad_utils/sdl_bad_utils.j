@@ -1,6 +1,38 @@
 #  Jasper den Ouden 02-08-2012
 # Placed in public domain.
 
+module SDL_BadUtils
+#Loading images int GL and/or SDL.
+
+import Base.* 
+import GetC.* 
+import AutoFFI_GL.*
+
+export init_stuff, finalize_draw, 
+       mouse_x,mouse_y, poll_event,flush_events
+
+export SDL_ID_FAILED, SDL_MOUSE_MOTION, SDL_MOUSE_LEFT, 
+       SDL_MOUSE_RIGHT, SDL_MOUSE_MIDDLE
+
+#non-asci keys.
+export SDLK_PAUSE, SDLK_ESCAPE,
+       SDLK_KP0, SDLK_KP1, SDLK_KP2, SDLK_KP3, SDLK_KP4, SDLK_KP5, SDLK_KP6,
+       SDLK_KP7, SDLK_KP8, SDLK_KP9, 
+       SDLK_KP_PERIOD, SDLK_KP_DIVIDE, SDLK_KP_MINUS, SDLK_KP_PLUS, 
+       SDLK_KP_ENTER, SDLK_KP_EQUALS, 
+       SDLK_UP, SDLK_DOWN, SDLK_RIGHT, SDLK_LEFT, 
+       SDLK_INSERT, SDLK_HOME, SDLK_END,
+       SDLK_PAGEUP, SDLK_PAGEDOWN, 
+       SDLK_F1, SDLK_F2, SDLK_F3, SDLK_F4, SDLK_F5, SDLK_F6, SDLK_F7, SDLK_F8,
+       SDLK_F9, SDLK_F10, SDLK_F11, SDLK_F12, SDLK_F13, SDLK_F14, SDLK_F15, 
+       SDLK_NUMLOCK, SDLK_CAPSLOCK, SDLK_SCROLLOCK, SDLK_RSHIFT, SDLK_LSHIFT,
+       SDLK_RCTRL, SDLK_LCTRL, SDLK_RALT, SDLK_LALT, SDLK_RMETA, SDLK_LMETA, 
+       SDLK_LSUPER, SDLK_RSUPER, SDLK_MODE, SDLK_HELP, SDLK_PRINT, 
+       SDLK_SYSREQ, SDLK_BREAK, SDLK_MENU, SDLK_POWER, SDLK_EURO, SDL_QUIT, 
+       SDL_VIDEORESIZE, SDL_VIDEOEXPOSE, SDL_SYSWMEVENT, SDL_EVENTS_DONE
+
+#----no more module stuff.
+
 stuff_lib = load_so("sdl_bad_utils/init_stuff.so") 
 
 @get_c_fun stuff_lib auto init_stuff(Int32,Int32)::Int32
@@ -41,7 +73,7 @@ const SDL_MOUSE_LEFT = 1025
 const SDL_MOUSE_RIGHT = 1026
 const SDL_MOUSE_MIDDLE = 1027
 
-#Le non-asci keys.
+#non-asci keys.
 const SDLK_PAUSE = 1029
 const SDLK_ESCAPE = 1040
 const SDLK_KP0 = 1030
@@ -112,3 +144,5 @@ const SDL_VIDEOEXPOSE = 1102
 const SDL_SYSWMEVENT = 1103
 
 const SDL_EVENTS_DONE = 0
+
+end #module SDL_BadUtils

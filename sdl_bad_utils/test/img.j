@@ -1,6 +1,5 @@
 
 #Just tests some gl drawing and showing where the cursor is as such.
-load("util/load_so.j")
 load("util/util.j")
 load("util/get_c.j")
 
@@ -9,6 +8,13 @@ load("ffi_extra/gl.j")
 
 load("sdl_bad_utils/sdl_bad_utils.j")
 load("sdl_bad_utils/gl_sdl_load_img.j")
+
+import OJasper_Util.*
+import SDL_BadUtils.*
+import GL_SDL_LoadImg.*
+
+import AutoFFI_GL.*
+import FFI_Extra_GL.*
 
 function texies() #TODO doesn't work, wrong ) or, ??
   @with glprimitive(GL_QUADS) begin

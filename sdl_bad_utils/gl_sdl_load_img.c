@@ -1,7 +1,6 @@
 //  Jasper den Ouden 16-08-2012
 // Placed in public domain.
 
-
 #include <GL/gl.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>

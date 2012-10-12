@@ -1,10 +1,23 @@
 #  Jasper den Ouden 02-08-2012
 # Placed in public domain.
 
+module FFI_Extra_GL
 #Handy stuff to make use of Julia features.
-#Probably best to stay similar to cl-opengl.
+import Base.*
+import OJasper_Util.*
+import AutoFFI_GL.*
 
-#Macro to conveniently also support tupled arguments.(TODO probably move elsewhere)
+export glvertex, glcolor,glcolorb, gltexcoord,glnormal,
+       glscale, gltranslate, glrotate,glrotate_r,
+#TODO upgrade so glbegin/glpushmatrix can be used directly.
+       glprimitive,glpushed,
+       unit_frame_from, unit_frame_to,
+       rect_vertices, rect_vertices_around
+# glenable (covered by autoFFI)
+       
+
+#Macro to conveniently also support tupled arguments.
+# (TODO probably move elsewhere)
 macro also_tuple(of, to)
   function getwhich(given::Expr)
     if given.head == symbol(":")
@@ -198,3 +211,5 @@ vertices_rect_around(pos::Vector2, r::Number) =
    vertices_rect_around(pos[1],pos[2],r)
 
 @also_tuple vertices_rect_around 2:3
+
+end #module FFI_Extra_GL
