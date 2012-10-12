@@ -1,9 +1,6 @@
 #  Jasper den Ouden 02-08-2012
 # Placed in public domain.
 
-#TODO there are `test_` functions inside, move them to correct dir
-# and run them. Also add/fix whatever needed.
-
 module Geom
 #Various geometry functions.
 
@@ -31,18 +28,6 @@ function line2d_cross_p (r,u,v)
   return 0 <= lambda <= 1 && 0 <= mu <= 1
 end
 line2d_cross_p(a,b, c,d) = line2d_cross_p(a - c, b - a, d - c)
-
-function test_line2d_cross_param (a,b, c,d)
-  lambda,mu = line2d_cross_param(a,b, c,d)
-  va = a + (b-a)*lambda
-  vb = c + (d-c)*mu
-  assert( va == vb, "No match $va $vb" )
-end
-function test_line2d_cross_param (cnt)
-  for n = 1:cnt
-    test_line2d_cross_param(randn(2),randn(2),randn(2),randn(2))
-  end
-end
 
 in_range(x::Number, from::Number,to::Number) = (from<=x && x<=to)
 
