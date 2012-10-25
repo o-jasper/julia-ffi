@@ -7,8 +7,10 @@
 #  (at your option) any later version.
 #
 
-load("util/util.j")
+load("util/util.jl")
 load("parse/c_header.jl")
+
+import OJasper_Util.*, CHeader.*
 
 #Generates randomly whitespaced and commented stuff.
 function generate_for_skip_white(crud_len, x)

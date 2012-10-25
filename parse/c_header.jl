@@ -8,6 +8,16 @@
 #
 
 # Parses preprocessed C header files (perhaps upgrade to C)
+module CHeader
+
+import Base.*
+import OJasper_Util.*
+
+export ConvenientStream, skip_white
+export TokFun, TokVar, TokStruct, TokType, TokTypedef
+export parse_toplevel
+
+# --- end module stuff
 
 type ConvenientStream #TODO not quite the right place to put this file.
   stream::IOStream
@@ -215,3 +225,5 @@ end
 parse_toplevel(in::IOStream) = parse_toplevel(ConvenientStream(in))
 parse_toplevel(file::String) =
     @with stream = open(file, "r") parse_toplevel(stream)
+
+end #module CHeader
