@@ -1,6 +1,6 @@
 #TODO currently fails.
 
-load("util/geom.j")
+load("util/geom.jl")
 
 import Geom.*
 

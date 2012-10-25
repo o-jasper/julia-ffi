@@ -1,5 +1,5 @@
 
-load("util/ExpandingArray.j")
+load("util/ExpandingArray.jl")
 import ExpandingArrayModule.*
 
 function test1d(cnt::Integer, fr::Integer,to::Integer, arr)

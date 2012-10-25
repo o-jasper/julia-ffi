@@ -1,13 +1,13 @@
 
 #Just tests some gl drawing and showing where the cursor is as such.
-load("util/util.j")
-load("util/get_c.j")
+load("util/util.jl")
+load("util/get_c.jl")
 
-load("autoffi/gl.j")
-load("ffi_extra/gl.j")
+load("autoffi/gl.jl")
+load("ffi_extra/gl.jl")
 
-load("sdl_bad_utils/sdl_bad_utils.j")
-load("sdl_bad_utils/gl_sdl_load_img.j")
+load("sdl_bad_utils/sdl_bad_utils.jl")
+load("sdl_bad_utils/gl_sdl_load_img.jl")
 
 import OJasper_Util.*
 import SDL_BadUtils.*

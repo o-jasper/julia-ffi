@@ -1,7 +1,7 @@
 #module TabbedDataTest
 
-load("util/util.j") #I don't wanna do it manually anymore
-load("util/tabbed_data.j")
+load("util/util.jl") #I don't wanna do it manually anymore
+load("util/tabbed_data.jl")
 
 import OJasper_Util.*
 import TabbedData.*

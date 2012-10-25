@@ -2,16 +2,15 @@
 # Placed in public domain.
 
 module FFI_Extra_GL
+
 #Handy stuff to make use of Julia features.
-import Base.*
-import OJasper_Util.*
-import AutoFFI_GL.*
+import Base.*, OJasper_Util.*, AutoFFI_GL.*
 
 export glvertex, glcolor,glcolorb, gltexcoord,glnormal,
        glscale, gltranslate, glrotate,glrotate_r,
 #TODO upgrade so glbegin/glpushmatrix can be used directly.
        glprimitive,glpushed,
-       unit_frame_from, unit_frame_to,
+       unit_frame, unit_frame_from, unit_frame_to,
        rect_vertices, rect_vertices_around
 # glenable (covered by autoFFI)
        
