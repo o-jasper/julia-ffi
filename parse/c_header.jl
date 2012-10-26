@@ -150,7 +150,7 @@ function tokenize_for_c(in::ConvenientStream, what)
       end
       skip_white(in)
      #TODO if not, maybe it was part of the type?
-      assert( in.line[1]==';', in ) #Must be ';'-separated. # TODO { for more.
+#      assert( in.line[1]==';', in ) #Must be ';'-separated. # TODO { for more.
       return args_list
     elseif next_up('{')
       push_cur() #will also handle `struct`, if there.
@@ -204,10 +204,10 @@ function parse_toplevel_1(in::ConvenientStream)
   end
 end
 
-function eof(stream::IOStream) #Hrmmm
+function eof(stream::IOStream) #TODO Hrmmm
   i = position(stream)
   seek_end(stream)
-  if i == position(stream) #Terrible.
+  if i == position(stream) #TODO terrible.
     return true
   end
   seek(stream, i)

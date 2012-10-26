@@ -2,7 +2,7 @@
 #Placed in public domain.
 
 module ExpandingArrayModule
-#Expanding arrays with arbitrary setting of indices
+#Expanding arrays with arbitrary setting of indices.
 
 import Base.* 
 
@@ -12,6 +12,7 @@ export ExpandingArray, ExpandingArray2d,
 
 #----no more module stuff.
 
+#TODO time to use the regular `reshape`..
 #A reshape that works. (until the julia one starts working again..)
 function working_reshape{T}(arr::Array{T,1}, newlen::Integer)
   assert( length(arr) < newlen )
@@ -49,7 +50,7 @@ function assign{T,I<:Integer}(a::ExpandingArray{T}, to::T, i::I,
     return a.arr[1]
   end
   j = i - a.start    
-  if j<1 #Doesn't go low enough. #TODO overshoot on the small end.
+  if j<1 #Doesn't go low enough. #TODO overshoot on the small end aswel.
     add_len = 1 - j
     a.arr = working_reshape(a.arr, len + add_len)
     for k = len+1:length(a.arr) #Zero the new elements.
