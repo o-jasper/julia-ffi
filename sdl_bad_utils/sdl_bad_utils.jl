@@ -18,7 +18,7 @@ export SDLK_PAUSE, SDLK_ESCAPE,
        SDLK_KP7, SDLK_KP8, SDLK_KP9, 
        SDLK_KP_PERIOD, SDLK_KP_DIVIDE, SDLK_KP_MINUS, SDLK_KP_PLUS, 
        SDLK_KP_ENTER, SDLK_KP_EQUALS, 
-       SDLK_UP, SDLK_DOWN, SDLK_RIGHT, SDLK_LEFT, 
+       SDLK_UP, SDLK_DOWN, SDLK_RIGHT, SDLK_LEFT,
        SDLK_INSERT, SDLK_HOME, SDLK_END,
        SDLK_PAGEUP, SDLK_PAGEDOWN, 
        SDLK_F1, SDLK_F2, SDLK_F3, SDLK_F4, SDLK_F5, SDLK_F6, SDLK_F7, SDLK_F8,
@@ -45,15 +45,15 @@ draw_funs_lib = load_so("sdl_bad_utils/sdl_event.so")
 @get_c_fun draw_funs_lib auto poll_event()::Int32
 
 function flush_events(quit_exit_p::Bool)
-  while true
-    pol = poll_event()
-    if pol == SDL_EVENTS_DONE
-      return
+    while true
+        pol = poll_event()
+        if pol == SDL_EVENTS_DONE
+            return
+        end
+        if pol == SDL_QUIT && quit_exit_p
+            exit()
+        end
     end
-    if pol == SDL_QUIT && quit_exit_p
-      exit()
-    end
-  end
 end
 flush_events() = flush_events(true)
 
