@@ -19,7 +19,7 @@ Returns mouse position *as* `Int32`
 
 ### poll_event()::Int32
 Returns next event as `Int32`, most events exist as `const` values.
-(like all the `SDLK_..`s) 
+(like all the `SDLK_..`s) the associated negative values indicate key-ups.
 
 ### flush_events(quit_exit_p = true)
 Flush all the comments, for instance for if you don't care. 

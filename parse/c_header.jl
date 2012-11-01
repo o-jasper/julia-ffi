@@ -1,5 +1,5 @@
 #
-#  Copyright (C) 02-10-2012 Jasper den Ouden.
+#  Copyright (C) 31-10-2012 Jasper den Ouden.
 #
 #  This is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published
@@ -14,17 +14,17 @@ import Base.*
 import OJasper_Util.*
 
 export ConvenientStream, skip_white
-export TokFun, TokVar, TokStruct, TokType, TokTypedef
-export parse_toplevel
+export MExpr, MStruct
+export parse_top_1, parse_top
 
 # --- end module stuff
 
-type ConvenientStream #TODO not quite the right place to put this file.
+type ConvenientStream #TODO not quite the right place to put this.
   stream::IOStream
   line::String
 end
 ConvenientStream(stream::IOStream) = ConvenientStream(stream,"")
-#Pass on @with requirement.
+#Pass on @with duties.
 no_longer_with(cs::ConvenientStream) = no_longer_with(cs.stream)
 
 #TODO counting newlines shouldn't be too hard..
@@ -53,155 +53,136 @@ function get_to_line_with{W}(in::ConvenientStream, with::W)
 end
 #Skips comments, whitespace. TODO rename to skip_white or such
 function skip_white(in::ConvenientStream)
-  next_up(str) = begins_with(in.line, str)
-  while true
-    if isempty(in.line) || contains(" \t\n", in.line[1]) #Skip whitespace.
-      forward(in, 1)
-    elseif next_up("//") || next_up("#") #Skip whole lines.
-      readline(in)
-    elseif next_up("/*") #Skip to end of comment.
-      get_to_line_with(in,"*/",)
-    else #Not a comment or any such, return.
-      return nothing
+    next_up(str) = begins_with(in.line, str)
+    n=0
+    while true
+        if isempty(in.line) || contains(" \t\n", in.line[1]) #Skip whitespace.
+            forward(in, 1)
+        elseif next_up("//") || next_up("#") #Skip whole lines.
+            readline(in)
+        elseif next_up("/*") #Skip to end of comment.
+            get_to_line_with(in,"*/",)
+        else #Not a comment or any such, return.
+            return nothing
+        end
     end
-  end
 end
 
-type TokFun
+type MStruct
+  what::Symbol
   name::Symbol
-  args::Array{Any,1}
-  ret_tp::Any
+  members::Any
 end
 
-show(io, s::TokFun) = write(io,"$(s.name)$(s.args)::$(s.ret_tp)") #!
-
-type TokVar
-  name::Symbol
-  tp::Any
+function char_pos(str::String, chars)
+    for j = 1:length(str)
+        if contains(chars, str[j])
+            return j
+        end
+    end
+    return length(str)
 end
 
-type TokStruct
-  name::Symbol
-  members::Array{Any,1}
-end
-
-#type TokEnum #TODO
-
-show(io,s::TokVar) = write(io, "$(s.name)::$(s.tp)") #!
-
-type TokType
-  symbols::Vector{Any}
-  function TokType(tok_list) 
-    ensymbol(str::String) = symbol(str)
-    ensymbol(t) = t
-    new(map(ensymbol, tok_list))
-  end
-end
-
-type TokTypeDef
-  val
-end
-#TODO query the type for stuff.
-
-toklist_to_type_arg(toklist) =
-    TokVar(symbol(last(toklist)), TokType(butlast(toklist)))
-
-#Tokenizes for C.
-function tokenize_for_c(in::ConvenientStream, what)
+function parse_structlike(in::ConvenientStream, what::Symbol)
   list = {}
-  args_list = {}
-  j = 1
-  while true #TODO start instead by parsing a type.
-    skip_white(in)
-
-    function forw()
-      forward(in,j)
-      j=1
-    end
-    function push_cur()
-      str = in.line[1:j-1]
-      ch = (j<= length(in.line) ? in.line[j] : '\0')
-      forw()
-      if str == "struct" && ch=='{' #TODO named structs
-        forward(in,1)
-        push(list, parse_struct(in))
-      elseif length(str)>0
-        push(list, str)
-      end
-    end
-    next_up(chars...) = contains(chars, in.line[j])
-   
-    if j>length(in.line) || next_up(' ', '\t', '/') #Whitespace.
-      push_cur()
-    elseif next_up('(')
-      push_cur()
-      skip_white(in)
-      if in.line[1]=='*'
-        error("Function types not yet supported.")
-      end
-      arg_list = tokenize_for_c(in, :funargs)
-      return TokFun(symbol(last(list)), arg_list,
-                    TokType(butlast(list)))
-    elseif next_up(')') #Not in arguments and receiving ')'...
-      assert( what == :funargs )
-      push_cur()
-      if !isempty(list) #TODO enforce no `,/*nothing*/)`
-        push(args_list, toklist_to_type_arg(list))
-      end
-      skip_white(in)
-     #TODO if not, maybe it was part of the type?
-#      assert( in.line[1]==';', in ) #Must be ';'-separated. # TODO { for more.
-      return args_list
-    elseif next_up('{')
-      push_cur() #will also handle `struct`, if there.
-    elseif next_up(',')
-      assert( j>1 )
-      assert( what == :funargs )
-      push_cur()
-      push(args_list, toklist_to_type_arg(list))
-      list = {}
-    elseif next_up('*')
-      assert( what== :funargs )
-      push_cur()
-      push(list, :ptr)
-      forward(in,1)
-    elseif next_up(';')
-      push_cur()
-      assert( what!=:funargs ) #Arguments ended too early.
-      return toklist_to_type_arg(list)
-    elseif next_up('}')
-      error("Found '}' that doesn't seem opened")
-    end
-    j += 1
-  end
-  return list
-end
-
-function parse_struct(in::ConvenientStream)
-  list = {}
+  pushif(x) = (isempty(x) ? nothing : push(list,x)) #!
   skip_white(in)
+  name = :ignore
+  if in.line[1]!='{'
+      j = char_pos(in.line, [' ','\n','\t','{','/'])-1
+      if j>1 
+          name = symbol(in.line[1:j])
+      end
+      forward(in,j)
+      skip_white(in)
+      if in.line[1]!='{' #Not a declaration of the whole thing.
+          return MStruct(name,:mention)
+      end
+  end
   while in.line[1]!='}'
-    push(list, tokenize_for_c(in, :struct))
+    got,end_ch = parse_top_1(in)
+    assert(end_ch==';')
+    pushif(got)
     skip_white(in)
   end
   forward(in,1) #Get over the '}'
-  return TokStruct(:ignore, list)
-end
-function parse_union(in::ConvenientStream) #TODO
-  list = {}
-  skip_white(in)
-  #TODO allow , ; and  = to define shit.
+  return MStruct(what, name, list)
 end
 
-function parse_toplevel_1(in::ConvenientStream)
-  skip_white(in)
-  list = {}
-  if begins_with(in.line, "typedef")
-    forward(in, 7)
-    push(list, TokTypeDef(tokenize_for_c(in, :typedef)))
-  else
-    push(list, tokenize_for_c(in, :top))
-  end
+type MExpr
+    head::Symbol
+    args::Array{Any,1}
+end
+#Parses argument lists.
+function parse_tuple(in::ConvenientStream) 
+    list = {}
+    while true
+        got,end_ch = parse_top_1(in)
+        if end_ch==')' #Indicates done with tuple.
+            if !isempty(got)
+                push(list, got)
+            end
+            return list
+        end
+        push(list, got)
+      #Must be this to indicate next element
+        assert(end_ch==',', (in,end_ch)) 
+        skip_white(in)
+    end
+end
+
+#Parses various toplevel things.
+function parse_top_1(in::ConvenientStream)
+    list = {}
+    args_list = {}
+    skip_white(in)
+    j = 1
+    println(:i)
+    while true     
+        function forw()
+            forward(in,j)
+            skip_white(in)
+            j=1
+        end
+        function push_cur()
+            if j==1
+                forw()
+                return
+            end
+            j-=1 #Get rid of the stopper
+            str = in.line[1:j]
+            forw()
+            if str == "struct"
+                push(list, parse_structlike(in, :struct))
+            elseif str == "union"
+                push(list, parse_structlike(in, :union))
+            elseif str == "enum"
+                push(list, parse_structlike(in, :enum))
+            elseif length(str)>0
+                push(list, symbol(str))
+            end
+        end
+        next_up(chars...) = contains(chars, in.line[j])
+        
+        #TODO infix and unary operators.
+        if j>length(in.line) || next_up(' ', '\t', '/', '{')
+            push_cur()
+            continue
+        elseif next_up('(')
+            name = symbol(in.line[1:j-1])
+            forw()
+            push(list, MExpr(name, parse_tuple(in)))
+            continue
+        elseif next_up(';',')',',') #Latter only as tuple.
+            end_ch = in.line[j]
+            println((in.line, end_ch))
+            push_cur()
+#            forward(in,1)
+            println(:e)
+            return (list, end_ch)
+        end
+        j+=1
+    end
 end
 
 function eof(stream::IOStream) #TODO Hrmmm
@@ -214,16 +195,17 @@ function eof(stream::IOStream) #TODO Hrmmm
   return false
 end
 
-function parse_toplevel(in::ConvenientStream)
+function parse_top(in::ConvenientStream)
   list = {}
   while !eof(in.stream)
-    push(list, parse_toplevel_1(in))
+    got = parse_top_1(in)
+    push(list, got)
   end
   return list
 end
 
-parse_toplevel(in::IOStream) = parse_toplevel(ConvenientStream(in))
-parse_toplevel(file::String) =
-    @with stream = open(file, "r") parse_toplevel(stream)
+parse_top(in::IOStream) = parse_top(ConvenientStream(in))
+parse_top(file::String) =
+    @with stream = open(file, "r") parse_top(stream)
 
 end #module CHeader
