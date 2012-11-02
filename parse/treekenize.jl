@@ -16,7 +16,7 @@ export treekenize, TExpr #Function for making trees itself.
 export el_head, el_start,el_end,el_seeker
 
 #Some extra transformations.(might move to other module)
-export infix_syms, combine_heads
+export infix_syms, combine_heads,remove_heads
 
 export ConvenientStream
 
@@ -149,10 +149,6 @@ function remove_sequential_duplicates(list, which)
 end
 remove_sequential_duplicates(list) = remove_sequential_duplicates(list,All)
 
-function remove_from()
-
-end
-
 #Detect infix and prefix notation. Symbols are in-order.
 infix_syms(thing, symbols) = thing
 function infix_syms(str::String, symbols)
@@ -179,10 +175,10 @@ function infix_syms(tree::TExpr, symbols)
     return TExpr(tree.head,list)
 end
 
-function combine_heads{T}(in_list::Array{T,1}, symbols)
+function remove_heads_1{T}(in_list::Array{T,1}, head_symbols)
     list = {}
     for el in in_list
-        if isa(el, TExpr) && contains(symbols, el.head)
+        if isa(el, TExpr) && contains(head_symbols, el.head)
             append!(list, el.body)
         else
             push(list, el)
@@ -190,17 +186,31 @@ function combine_heads{T}(in_list::Array{T,1}, symbols)
     end
     return list
 end
-
-function combine_heads(tree::TExpr, symbols)
+#Remove heads of given kinds
+function remove_heads(tree::TExpr, head_symbols)
     list = {}
     for el in tree.body
-        push(list, isa(el,TExpr) ? combine_heads(el, symbols) : el)
+        push(list, remove_heads(el, head_symbols))
     end
-    if contains(symbols, tree.head)
-        list = combine_heads(list, symbols)
-        return TExpr(symbols[1], list)
+    list = remove_heads_1(list, head_symbols)
+    return TExpr(tree.head, list)
+end
+remove_heads{T}(tree::Array{T,1}, symbols) =
+    remove_heads_1(map(el->remove_heads(el,symbols), tree), symbols)
+remove_heads(tree, symbols) = tree
+
+#Put heads of given kinds together.
+function combine_heads(tree::TExpr, head_symbols) 
+    list = {}
+    for el in tree.body
+        push(list, isa(el,TExpr) ? combine_heads(el, head_symbols) : el)
+    end
+    if contains(head_symbols, tree.head)
+        list = remove_heads_1(list, head_symbols)
+        return TExpr(head_symbols[1], list)
     end
     return TExpr(tree.head,list)
 end
+combine_heads(tree, symbols) = map(el->combine_heads(el,symbols),tree)
 
 end #module Treekenize

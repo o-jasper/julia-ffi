@@ -64,7 +64,7 @@ end
 
 last(v) = v[length(v)]
 thelast(v, n::Integer) = v[1+length(v)-n:]
-thelast(v, n::Integer) = v[1+length(v)-n:]
+thelast(v)             = thelast(v,1)
 butlast(v, n::Integer) = v[1:length(v)-n]
 butlast(v) = butlast(v,1)
 

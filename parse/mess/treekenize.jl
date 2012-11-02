@@ -25,7 +25,7 @@ load("c_treekenize.jl")
 
 testc(str) = encode(stream_from_string(str))
 
-testc("sqr(x,y+z,q)")
+#testc("sqr(x,y+z,q)")
 
 function testc(n::Integer)
     list = {}
@@ -34,3 +34,9 @@ function testc(n::Integer)
     end
     return list
 end
+
+println(testc("extern __attribute__ ((visibility(\"default\"))) Uint8 SDL_GetAppState(void);"))
+
+println(testc("extern unsigned long long int gnu_dev_makedev (unsigned int __major,
+            unsigned int __minor)
+     __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__const__));"))
