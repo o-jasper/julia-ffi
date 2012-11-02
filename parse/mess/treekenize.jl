@@ -29,3 +29,11 @@ function testc(str)
 end
 
 testc("sqr(x,y+z,q)")
+
+function testc(n::Integer)
+    list = {}
+    @with s = open("test/gl.h.e") for i=1:n
+        push(list, c_treekenize(ConvenientStream(s),10))
+    end
+    return list
+end
