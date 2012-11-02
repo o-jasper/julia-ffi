@@ -23,17 +23,14 @@ test2("a,b,c left d e f,g rightrightleftleftrorightrightskaleftkitten")
 
 load("c_treekenize.jl")
 
-function testc(str)
-    s= ConvenientStream(stream_from_string(str))
-    println(c_treekenize(s, 10))
-end
+testc(str) = encode(stream_from_string(str))
 
 testc("sqr(x,y+z,q)")
 
 function testc(n::Integer)
     list = {}
-    @with s = open("test/gl.h.e") for i=1:n
-        push(list, c_treekenize(ConvenientStream(s),10))
+    @with s = open("test/SDL.h.e") for i=1:n
+        push(list, encode(s))
     end
     return list
 end
