@@ -16,7 +16,7 @@ export treekenize, TExpr #Function for making trees itself.
 export el_head, el_start,el_end,el_seeker
 
 #Some extra transformations.(might move to other module)
-export infix_syms, combine_heads,remove_heads
+export infix_syms, combine_heads,remove_heads, remove_heads_1
 
 export ConvenientStream
 

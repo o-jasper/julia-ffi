@@ -40,3 +40,9 @@ println(testc("extern __attribute__ ((visibility(\"default\"))) Uint8 SDL_GetApp
 println(testc("extern unsigned long long int gnu_dev_makedev (unsigned int __major,
             unsigned int __minor)
      __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__const__));"))
+
+println(testc("typedef struct __pthread_internal_list
+       {
+         struct __pthread_internal_list __prev;
+         struct __pthread_internal_list __next;
+       } __pthread_list_t;"))

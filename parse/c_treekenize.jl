@@ -26,7 +26,7 @@ c_treekenizer_set =
      bin_el(":"), bin_el("case")}
 
 #The later, the higher the precidence.
-c_infixes = [" ","\t","\n", ";", ",", "=",
+c_infixes = [";", ",", " ","\t","\n", "=",
              "!","||","&&",
              "~","|", "&", "|",
              "+","-", "/", "*"]
@@ -34,7 +34,8 @@ c_infixes = [" ","\t","\n", ";", ",", "=",
 function c_treekenize(s::ConvenientStream, try_n::Integer)
     tree = treekenize(s, c_treekenizer_set, ";", try_n,2)
     tree = infix_syms(tree, c_infixes)
-    tree = remove_heads(tree, [" ","\t","\n"])
+    tree = combine_heads(tree, [" ","\t","\n"])
+    tree = remove_heads_1(tree, " ")
     tree = remove_isequal(tree, "")
     return tree
 end
@@ -75,6 +76,11 @@ type CStruct
 end
 type CUnion
     name::String
+    body
+end
+
+type CEnum
+    name
     entries::Dict{String,Any}
 end
 
@@ -99,13 +105,12 @@ function encode_type{T}(arr::Array{T,1}, cleanup::Bool)
     if cleanup
         arr = remove_isequal(arr,"")
     end
-    
-    function structlike_start()
-        name,body_expr = isa(arr[2],String) ? (arr[2],arr[3]) : ("",arr[2])
-        assert(isa(body_expr, TExpr), arr)
-        assert(body_expr.head=="{")
-        return  name,remove_isequal(body_expr.body, "")
-    end
+#    function structlike_start()
+#        name,body_expr = (isa(arr[2],String) ? (arr[2],arr[3]) : ("",arr[2]))
+#        assert(isa(body_expr, TExpr), arr)
+#        assert(body_expr.head=="{")
+#        return name,remove_isequal(body_expr.body, "")
+#    end
     
     @case arr[1] begin
         "__attribute__" : encode_type(arr[3:],false)
@@ -134,36 +139,45 @@ function encode_type{T}(arr::Array{T,1}, cleanup::Bool)
         "void" : Void
         
         if "struct" | "union"
-            name,body = structlike_start()
-            if isempty(body)
-                return CStruct(name,{})
-            end
-            assert(body[1].head==";", (arr,body)) #Must be separated by those.
-            return @case arr[1] begin
-                "struct" : CStruct(name, map(encode, body[1].body))
-                "union"  : CUnion(name,  map(encode, body[1].body))
-            end
-        end
-        if "enum"
-            name,body = structlike_start()
-            if isempty(body)
-                return CEnum(name,{})
-            end
-            entries = Dict{String,Any}()
-            handle_entry(entry::String) = assign(entries, entry,:unknown) #!
-            function handle_entry(entry::TExpr)
-                assert(entry.head == "=" && length(entry.body)==2)
-                assign(entries, entry.body[1],entry.body[2])
-            end
+            retval(name,body) = (arr[1]==struct ? CStruct(name,body) : 
+                                                  CUnion(name,body))
             
-            if isa(body[1], String) || body[1].head=="="
-                handle_entry(body[1])
-            else
-                assert(body[1].head==",")
-                map(handle_entry, body[1].body)
+            i,name = (isa(arr[2], String) ? (3,arr[2]) : (2,nothing))
+            struct = (i<= length(arr) ? arr[i] : :reference)
+            if isa(struct, TExpr)
+                if struct.head=="{"
+                    first = remove_isequal(struct.body,"")[1]
+                    assert(isa(first, TExpr) && first.head==";", first)
+                    list = map(encode, remove_isequal(first.body,""))
+                    return retval(name, remove_isequal(list, nothing))
+                elseif
+                    assert(struct.head=="*")
+                    return CPointer(retval(name,struct),
+                                    pointer_cnt(struct.body))
+                end
             end
-            return CEnum(name, entries)
+            return retval(name, struct)
         end
+#        if "enum"
+#            name,body = structlike_start()
+#            if isempty(body)
+#                return CEnum(name,{})
+#            end
+#            entries = Dict{String,Any}()
+#            handle_entry(entry::String) = assign(entries, entry,:unknown) #!
+#            function handle_entry(entry::TExpr)
+#                assert(entry.head == "=" && length(entry.body)==2)
+#                assign(entries, entry.body[1],entry.body[2])
+#            end
+#            
+#            if isa(body[1], String) || body[1].head=="="
+#                handle_entry(body[1])
+#            else
+#                assert(body[1].head==",")
+#                map(handle_entry, body[1].body)
+#            end
+#            return CEnum(name, entries)
+#        end
         default : arr
     end
 end
@@ -171,6 +185,9 @@ end
 function encode(tree::TExpr)
     @case tree.head begin
         if "#" | "//" | "/*" #Comments and macros currently ignored
+        end
+        if " "
+            encode(tree.body)
         end
     end
 end
@@ -195,36 +212,44 @@ type CTypedef
 end
 
 type CPointer
-    cnt::Integer
     tp
+    cnt::Integer
+end
+
+function pointer_count{T}(body::Array{T,1})
+    assert(last(body)!="")
+    i = length(body)-1
+    while i>=1
+        if body[i]!=""
+            break
+        end
+        i-=1
+    end
+    cnt = 1 + length(body)-1 - i
+    while i>=1 #No more empty ones.
+        assert(body[i]!="")
+        i-=1
+    end
+    return 1 + length(body)-1 - i
 end
 
 function encode_args{T}(arr::Array{T,1})
-    handle_var(var) = CVarType(last(var), encode_type(butlast(var)))
+    arr = remove_heads_1(arr, [" "])
+    handle_var(var) = 
+        (isempty(var) ? CVarType(:none,{}) :
+                        CVarType(last(var), encode_type(butlast(var))))
     function handle_var(var::TExpr)
-        assert(var.head=="*", var) #Pointers, apparently.
         body = var.body
-        assert(last(body)!="")
-        i = length(body)-1
-        while i>=1
-            if body[i]!=""
-                break
-            end
-            i-=1
+        if var.head==" "
+            return handle_var(body)
         end
-        cnt = 1 + length(body)-1 - i
-        while i>=1 #No more empty ones.
-            assert(body[i]!="")
-            i-=1
-        end
-        return CVarType(last(var), CPointer(cnt,encode_type(butlast(body))))
+        assert(var.head=="*", var) #Pointers, apparently.
+        return CVarType(last(var), CPointer(encode_type(butlast(body)),
+                                            pointer_cnt(body)))
     end
     
     #Toplevel comma. (Multiple items)
     if isa(arr[1], TExpr) && !(arr[1].head=="*")
-        if arr[1].head==" "
-            return encode_args(arr[1].body)
-        end
         assert(length(arr)==1 && arr[1].head==",", arr)
         return map(handle_var, arr[1].body)
     elseif length(arr)==1
@@ -236,11 +261,11 @@ end
 
 encode{T}(arr::Array{T,1}) = encode(arr,true)
 function encode{T}(arr::Array{T,1}, cleanup)
+    if cleanup
+        arr = remove_isequal(remove_heads_1(arr, [" "]), "")
+    end
     if isempty(arr)
         return nothing
-    end
-    if cleanup
-        arr = remove_isequal(arr, "")
     end
     last_el = last(arr)
     if arr[1]== "typedef"
@@ -258,9 +283,10 @@ function encode{T}(arr::Array{T,1}, cleanup)
         type_arr = arr[1:i-1]
         return CExpr(name, encode_args(last_el.body), encode_type(type_arr))
     elseif isa(last_el, String)
-        CVarType(last_el,encode_type(butlast(arr)))
+        return CVarType(last_el,encode_type(butlast(arr)))
     end
 end
+encode(s::String) = s
 
 encode(s::ConvenientStream) = encode(c_treekenize(s, 10))
 encode(s::IOStream) = encode(c_treekenize(s, 10))
