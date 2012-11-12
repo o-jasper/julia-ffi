@@ -1,6 +1,6 @@
 default: test_stuff
 
-test_stuff: skip_white
+test_stuff: treekenize
 
-skip_white:
-	sh test.sh skip_white
+treekenize:
+	sh test.sh treekenize

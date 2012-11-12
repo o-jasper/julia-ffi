@@ -31,7 +31,7 @@ ConvenientStream(stream::IOStream) = ConvenientStream(stream,"",int32(0))
 #Pass on @with duties.
 no_longer_with(cs::ConvenientStream) = no_longer_with(cs.stream)
 
-#TODO counting newlines shouldn't be too hard..
+#TODO add counting newlines to ConvenientStream.
 function forward(cs::ConvenientStream, n::Integer)
     if n>length(cs.line)
         cs.line = readline(cs.stream)[n-length(cs.line):]
@@ -50,7 +50,6 @@ type TExpr
     body
 end
 
-#
 treekenize(stream::ConvenientStream, seeker::Nothing, end_str,
            limit_n::Integer, max_len::Integer) = end_str
 function treekenize(stream::ConvenientStream, seeker::Function, end_str,
@@ -59,7 +58,6 @@ function treekenize(stream::ConvenientStream, seeker::Function, end_str,
     return treekenize(stream, new_seeker, el_end(new_seeker),
                       limit_n,max_len)
 end
-
 #Turns a stream into a tree of stuff.
 function treekenize(stream::ConvenientStream, seeker::Array, end_str,
                     limit_n::Integer, max_len::Integer)
