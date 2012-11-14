@@ -37,6 +37,9 @@ function ffi_top(expr::CTypedef, info)
         return nothing
     end
     name = symbol(expr.name)
+    if isa(expr.tp, CStruct)
+        
+    end
     tp   = ffi_type(expr.tp, info)
     assign(info.tp_aliasses, tp, name) #Record it.
     return :(typealias $name $tp)
@@ -94,12 +97,24 @@ function pprint(to::IOStream, e::Expr)
     name,args = (e.head==:call ? (e.args[1],e.args[2:]) : (e.head, e.args))
     @case name begin
         if symbol("typealias")
-            write(to, "typealias")
-            for a in args
-                write(to," ")
-                pprint(to,a)
+            tp = args[2]
+            if tp.head==symbol("type") #TODO move this logic to 
+                write(to, "type $(tp.args[1])\n")
+#                assert( isa(tp.args[2], Expr) && tp.head==:block )
+                for component in tp.args[2].args
+                    write(to, "  ")
+                    pprint(to, component)
+                    write(to, "\n")
+                end
+                write(to, "end\n")
+            else
+                write(to, "typealias")
+                for a in args
+                    write(to," ")
+                    pprint(to, a)
+                end
+                write(to,"\n")
             end
-            write(to,"\n")
         end
         if :macrocall
             pprint(to,args[1])
