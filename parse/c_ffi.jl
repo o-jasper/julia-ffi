@@ -1,5 +1,5 @@
 #
-#  Copyright (C) 02-10-2012 Jasper den Ouden.
+#  Copyright (C) 12-11-2012 Jasper den Ouden.
 #
 #  This is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published
@@ -7,111 +7,132 @@
 #  (at your option) any later version.
 #
 
-#Turns the C 'tree' into julia-ffi-ing code.
+import Base.*, OptionsMod.*
+import GetC.*
 
-function julia_ize_types(types)
-  len = length(types)
-  assert( len>0 ) #No type..?
-  function last_tp(got,i)
-    assert( len==i )
-    return got
-  end
-  @case types[1] begin
-    :char  | :int8_t  : last_tp(Int8, 1)
-    :short | :int16_t : last_tp(Int16,1)
-    :int   | :int32_t : last_tp(Int32,1)
-    :long  | :int64_t : last_tp(Int64,1) #TODO long can be repeated..
+type FFI_Info #info on how to FFI
+    lib::Symbol #Variable with library.
     
-    :uint8_t  : last_tp(Uint8, 1)
-    :uint16_t : last_tp(Uint16,1)
-    :uint32_t : last_tp(Uint32,1)
-    :uint64_t : last_tp(Uint64,1) #TODO long can be repeated..
+    fun_namer
     
-    :float  : last_tp(Float32,1)
-    :double : last_tp(Float64,1)
-    
-    :void   : last_tp(Void,1)
+    tp_aliasses::Dict{Symbol,Any}
+end
+function FFI_Info(lib::Symbol, opts::Options) 
+    @defaults opts namer = :auto
+    return FFI_Info(lib, namer, Dict{Symbol,Any}())
+end
+FFI_Info(lib::Symbol) = FFI_Info(lib, @options)
 
-    :ptr    : Ptr{julia_ize_types(types[2:])}
-    
-    if :const | :volatile | :inline
-      julia_ize_types(types[2:]) #Consts are ignored atm.
+fun_namer(namer::Symbol,   name::Symbol,args) = namer #There indicators belong to @get_c
+fun_namer(namer::Function, name::Symbol,args) = namer(name,args)
+
+#Allows you to tell it to not whine about an alias.
+#function manual_alias(info::FFI_Info, name::Symbol, tp)
+#    
+#end
+#manual_alias(info::FFI_Info, name::Symbol) = manual_alias(info,name, :manual_alias)
+
+function ffi_top(expr::CTypedef, info)
+    if !isa(expr.name,String) #TODO what is it?
+        return nothing
     end
-    if :unsigned 
-      if len == 1
-        return Uint32
-      end
-      @case types[2] begin
-        :char   : last_tp(Uint8,2)
-        :short  : last_tp(Uint16,2)
-        :int    : last_tp(Uint32,2)
-        :long   : last_tp(Uint64,2)
-        default : error("looks like invalid unsigned type.")
-      end
+    name = symbol(expr.name)
+    tp   = ffi_type(expr.tp, info)
+    assign(info.tp_aliasses, tp, name) #Record it.
+    return :(typealias $name $tp)
+end
+function ffi_top(expr::CExpr, info)
+    name = symbol(expr.name)
+    arglist = {name}
+    for el in expr.args
+        push(arglist, ffi_arg(el,info))
     end
-    if default #None of those..
-      
+    return :(@get_c_fun $(info.lib) $(fun_namer(info.fun_namer,name,arglist)) $(Expr(:call, arglist,Any))::$(ffi_type(expr.tp, info)))
+end
+
+ffi_arg(var::CVarType, info) = Expr(symbol("::"), {var.var, ffi_type(var.tp, info)},Any)
+
+ffi_top(expr::CVarType, info) = nothing #Not doing globals at the moment.
+#ffi_top(expr::CStruct) #Need a convention for these?
+#ffi_top(expr::CUnion
+#ffi_top(expr::CEnum)
+
+ffi_type(tp::BitsKind, info) = tp #Already there(it figured it out itself)
+function ffi_type(tp::UnionKind, info)
+    assert(tp==Void)
+    return tp
+end
+function ffi_type(tp::CPointer, info)
+    ptr(tp,n) = (n>0 ? ptr(:(Ptr{$tp}), n-1) : tp)
+    return ptr(ffi_type(tp.tp,info), tp.cnt)
+end
+#TODO
+ffi_type(tp::CArr,info) = :(Ptr{$(ffi_type(tp.tp,info))})
+
+function ffi_type(tp::CStruct, info)
+    if isa(tp.body, Symbol)
+        assert( tp.body== :reference )
+        return :TODO_refer_to_struct #explicit mention that it is a struct.
     end
-  end
+    list = {} #List of elements in there.
+    for component in tp.body
+        assert(isa(component, CVarType))
+        push(list, Expr(symbol("::"), {component.var, ffi_type(component.tp, info)}, Any))
+    end
+    return Expr(symbol("type"), {tp.name, Expr(:block, list,Any)}, Any)
 end
 
-#Makes a type_name_hook that runs after the julia one.
-julia_ized_type_name_hook(fun) = ((types) -> fun(julia_ize_types(types)))
-
-#fun_name_hook that prepends/appends something.
-# (can be combined with other hooks of course)
-mark_funs(list, mark_prepend::String, mark_append::String) =
-   ((fun_name_sym) -> contains(list, fun_name_sym) ?
-                      symbol("$mark_prepend$fun_name_sym$mark_append") :
-                      fun_name_sym)
-mark_funs(list, mark_prepend::String) = mark_funs(list, mark_prepend,"")
-
-type JuliaFFI
-  lib_name::Symbol # Name of library variable.
-  
- #You can replace these with a function to determine the Julia name as
- # dependent on the C name.
-  fun_name_hook::Function
-  type_hook::Function
-  var_name_hook::Function
-
- #Receives toplevel stuff, can return anything. Return `nothing` to ignore
- # something.
-  top_hook::Function 
-  #lib_extra_name::Symbol # Name of library created for extra access.
+function ffi_type{T}(tp::Array{T,1}, info)
+    assert( length(tp)==1 ) #Know no reason otherwise would happen.
+    name = symbol(tp[1])
+    assert( has(info.tp_aliasses, name), "Referrering to nonexistent type? $name")
+    return name
 end
 
-JuliaFFI(lib_name::Symbol) =
-    JuliaFFI(output, lib_name,
-             identity, julia_ize_types, identity, identity)
-
-#Receive a variable.
-function ffi(by::JuliaFFI, var::TokVar)
-  #Currently does nothing.
-# TODO possibly make it an reader and accessor.
+#pretty print
+function pprint(to::IOStream, e::Expr)
+    name,args = (e.head==:call ? (e.args[1],e.args[2:]) : (e.head, e.args))
+    @case name begin
+        if symbol("typealias")
+            write(to, "typealias")
+            for a in args
+                write(to," ")
+                pprint(to,a)
+            end
+            write(to,"\n")
+        end
+        if :macrocall
+            pprint(to,args[1])
+            for a in args[2:]
+                write(to," ")
+                pprint(to,a)
+            end
+            write(to,"\n")
+        end
+        if symbol("type")
+            #TODO
+        end
+        if symbol("::")
+            pprint(to, args[1])
+            write(to, "::")
+            pprint(to, args[2])
+        end
+        if name
+            pprint(to, name)
+            write(to, "(")
+            if !isempty(args)
+                pprint(to,args[1])
+                for a in args[2:]
+                    write(to,",")
+                    pprint(to,a)
+                end
+            end
+            write(to,")")
+        end
+        default : error("Dont know what to do with head $name")
+        
+    end
+    return nothing
 end
-
-#Function.
-function ffi(by::JuliaFFI, fun::TokFun)
-  args = {fun.name}
-  for a in fun.args
-    push(args, by.type_hook(a.symbols))
-  end
-  return :(@get_c_fun $(by.lib_name) $(by.fun_name_hook(fun.name))
-           $(Expr(call, args, by.type_hook(fun.ret_tp.symbols))))
-end
-
-# type definition
-function ffi(by::JuliaFFI, tpdef::TokTypeDef)
-  #TODO abstract type
-  tokvar = tpdef.val
-  #TODO look for and remove any struct.
-  #TODO if struct inside, possibly make reader, accessor.
-  :(typealias $(by.var_name_hook(tokvar.name)) $(by.type_hook(tokvar.tp)))
-end
-
-#function ffi(by::JuliaFFI, fun::TokStruct)
-#function ffi(by::JuliaFFI, fun::TokEnum)
-
-print_ffi_1(output::IOStream, by::JuliaFFI, stream::ConvenientStream) = 
-    write(output, "$(ffi(by, parse_toplevel_1(stream)))\n")
+pprint{T}(to::IOStream, thing::T) = print(to,thing)
+pprint{T}(thing::T) = pprint(stdout_stream, thing)

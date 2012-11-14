@@ -11,7 +11,7 @@ export glvertex, glcolor,glcolorb, gltexcoord,glnormal,
 #TODO upgrade so glbegin/glpushmatrix can be used directly.
        glprimitive,glpushed,
        unit_frame, unit_frame_from, unit_frame_to,
-       rect_vertices, rect_vertices_around
+       rect_vertices, vertices_rect_around
 # glenable (covered by autoFFI)
        
 
@@ -91,10 +91,12 @@ glnormal(x::Number,y::Number,z::Number) = glnormal3d(x,y,z)
 glcolor(r::Number,g::Number,b::Number) = glcolor3f(r,g,b)
 glcolor(r::Number,g::Number,b::Number,a::Number) = glcolor4f(r,g,b,a)
 @also_tuple glcolor 3:4
+glcolor(grayscale::Number) = glcolor(grayscale,grayscale,grayscale)
 
 glcolorb(r::Integer,g::Integer,b::Integer) = glcolor3b(r,g,b)
 glcolorb(r::Integer,g::Integer,b::Integer,a::Integer) = glcolor4b(r,g,b,a)
 @also_tuple glcolorb 3:4
+glcolorb(grayscale::Integer) = glcolorb(grayscale,grayscale,grayscale)
 
 glscale(x::Number,y::Number,z::Number) = glscaled(x,y,z)
 glscale(x::Number,y::Number) = glscaled(x,y,1)

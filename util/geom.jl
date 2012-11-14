@@ -6,7 +6,7 @@ module Geom
 
 import Base.* 
 
-export dist, line2d_cross_param, line2d_cross_p, 
+export dist,distsqr, line2d_cross_param, line2d_cross_p, 
        in_range,map_to_range,
        rand_range, rand_in_circle
 

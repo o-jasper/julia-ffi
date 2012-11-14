@@ -13,6 +13,7 @@ export SDL_ID_FAILED, SDL_MOUSE_MOTION, SDL_MOUSE_LEFT,
        SDL_MOUSE_RIGHT, SDL_MOUSE_MIDDLE
 
 #non-asci keys.
+#(Ascii keys are given by their unsigned numbers, keyups are negatives of the keydowns)
 export SDLK_PAUSE, SDLK_ESCAPE,
        SDLK_KP0, SDLK_KP1, SDLK_KP2, SDLK_KP3, SDLK_KP4, SDLK_KP5, SDLK_KP6,
        SDLK_KP7, SDLK_KP8, SDLK_KP9, 

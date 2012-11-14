@@ -18,7 +18,8 @@ c_treekenizer_set =
     {("/*", "*/"),("//", "\n"),("#","\n"),
      ("(",")"),("[","]"),("{","}"),  #Order matters!
 #     bin_el(";"), #Not this one, it is where treekenize stops on.
-#     bin_el(","), bin_el(";"),  #Not these, infixing does it from strings.
+#Not these, infixing does it from strings.
+#     bin_el(","), bin_el(";"),  
 #     bin_el(" ", :white), bin_el("\t", :white),bin_el("\n", :white),
 #     bin_el("+"), bin_el("-"), bin_el("*"),bin_el("/"),
 #     bin_el("||"),bin_el("&&"),bin_el("!"),
@@ -170,6 +171,11 @@ type CPointer
     tp
     cnt::Int8
 end
+type CArr
+    tp
+    len::Int64
+end
+
 CPointer(tp,cnt::Integer) = CPointer(tp,int8(cnt))
 
 type CVarType
@@ -249,6 +255,7 @@ function c_parse_type(arr::Array{Any,1})
                 retval(struct)
             end
         end
+        #TODO enums!
         default : arr
     end
     return ptr_cnt>0 ? CPointer(result,ptr_cnt) : result
@@ -280,20 +287,31 @@ function c_parse_top{T}(arr::Array{T,1})
     if arr[1]=="typedef"
         return CTypedef(last_el, c_parse_type(arr[2:length(arr)-1]))
     end
-    if isa(last_el, TExpr) && last_el.head=="("
-        i = length(arr)-1
-        name = arr[i]
-        if name == "__attribute__" #Dont want these at end, try again.
-            new_arr = append!(copy(arr[i:]), arr[1:i-1])
-            return c_parse_top(new_arr)
+    if isa(last_el, TExpr) 
+        if last_el.head=="("
+            i = length(arr)-1
+            name = arr[i]
+            if name == "__attribute__" #Dont want these at end, try again.
+                new_arr = append!(copy(arr[i:]), arr[1:i-1])
+                return c_parse_top(new_arr)
+            end
+            assert(name!="")
+            type_arr = arr[1:i-1]
+            return CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
+        elseif last_el.head=="[" #TODO more robust..
+            pre_last = arr[length(arr)-1]
+            assert(isa(pre_last,String))
+            assert(length(last_el.body)==1 && isa(last_el.body[1],String) ||
+                   isempty(last_el.body))
+            return CVarType(symbol(pre_last), 
+                            CArr(c_parse_type(butlast(arr,2)),
+                                 isempty(last_el.body) ? 0 : parse_int(last_el.body[1])))
         end
-        assert(name!="")
-        type_arr = arr[1:i-1]
-        return CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
     elseif isa(last_el, String)
         if length(arr)==2 && arr[1]=="struct"
             return CStruct(symbol(last_el), :reference)
         end
         return CVarType(symbol(last_el),c_parse_type(butlast(arr)))
     end
+    error("Ended up here $arr $last_el")
 end
