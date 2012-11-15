@@ -10,18 +10,24 @@
 import Base.*, OptionsMod.*
 import GetC.*
 
+#TODO more user control.
 type FFI_Info #info on how to FFI
     lib::Symbol #Variable with library.
+    on_file::String
     
     fun_namer
     
     tp_aliasses::Dict{Symbol,Any}
+    
+    only_visibility
+    
+    on_p::Bool
 end
-function FFI_Info(lib::Symbol, opts::Options) 
-    @defaults opts namer = :auto
-    return FFI_Info(lib, namer, Dict{Symbol,Any}())
+function FFI_Info(lib::Symbol, on_file::String, opts::Options)
+    @defaults opts namer = :auto only_visibility= {:default}
+    return FFI_Info(lib,on_file, namer, Dict{Symbol,Any}(), only_visibility, true)
 end
-FFI_Info(lib::Symbol) = FFI_Info(lib, @options)
+FFI_Info(lib::Symbol, on_file::String) = FFI_Info(lib,on_file, @options)
 
 fun_namer(namer::Symbol,   name::Symbol,args) = namer #There indicators belong to @get_c
 fun_namer(namer::Function, name::Symbol,args) = namer(name,args)
@@ -32,19 +38,31 @@ fun_namer(namer::Function, name::Symbol,args) = namer(name,args)
 #end
 #manual_alias(info::FFI_Info, name::Symbol) = manual_alias(info,name, :manual_alias)
 
-function ffi_top(expr::CTypedef, info)
+ffi_top{T}(expr::T, info) = (info.on_p ? ffi_pretop(expr,info) : nothing)
+function ffi_top(chash::CHash, info)
+    expr = chash.note
+    assert(expr.head=="#" && length(expr.body)==1 && isa(expr.body[1],String), expr)
+    list = split(expr.body[1], "\"", true)
+    info.on_p = ends_with(list[2], info.on_file)
+    return ffi_top(chash.thing, info)
+end
+
+function ffi_pretop(expr::CTypedef, info)
     if !isa(expr.name,String) #TODO what is it?
         return nothing
     end
     name = symbol(expr.name)
     if isa(expr.tp, CStruct)
-        
+        struct_elements = Expr(:block, map((el)->ffi_pretop(el,info), expr.tp.body), 
+                               Any)
+        return Expr(symbol("type"), {name, struct_elements}, Any)
+    else
+        tp = ffi_type(expr.tp, info)
+        assign(info.tp_aliasses, tp, name) #Record it.
+        return :(typealias $name $tp)
     end
-    tp   = ffi_type(expr.tp, info)
-    assign(info.tp_aliasses, tp, name) #Record it.
-    return :(typealias $name $tp)
 end
-function ffi_top(expr::CExpr, info)
+function ffi_pretop(expr::CExpr, info)
     name = symbol(expr.name)
     arglist = {name}
     for el in expr.args
@@ -55,10 +73,19 @@ end
 
 ffi_arg(var::CVarType, info) = Expr(symbol("::"), {var.var, ffi_type(var.tp, info)},Any)
 
-ffi_top(expr::CVarType, info) = nothing #Not doing globals at the moment.
-#ffi_top(expr::CStruct) #Need a convention for these?
-#ffi_top(expr::CUnion
-#ffi_top(expr::CEnum)
+ffi_pretop(expr::CVarType, info) = ffi_arg(expr,info)
+ffi_pretop(expr::CStruct, info)  = ffi_pretop(CTypedef(symbol("struct_$(expr.name)"),expr), info)
+#ffi_pretop(expr::CUnion
+#ffi_pretop(expr::CEnum)
+
+ffi_pretop(expr::Nothing,info) = nothing
+
+function ffi_pretop(expr::CAttribute, info)
+    assert(!isequal(expr.full,nothing))
+    if contains(info.only_visibility, expr.visibility) || isempty(info.only_visibility)
+        return ffi_pretop(expr.thing, info)
+    end
+end
 
 ffi_type(tp::BitsKind, info) = tp #Already there(it figured it out itself)
 function ffi_type(tp::UnionKind, info)
@@ -86,68 +113,49 @@ function ffi_type(tp::CStruct, info)
 end
 
 function ffi_type{T}(tp::Array{T,1}, info)
-    assert( length(tp)==1 ) #Know no reason otherwise would happen.
+#    assert( length(tp)==1, tp ) #Know no reason otherwise would happen.
     name = symbol(tp[1])
     assert( has(info.tp_aliasses, name), "Referrering to nonexistent type? $name")
     return name
 end
 
-#pretty print
+#Pretty prints separated by some symbol with stuff to write before and after.
+function pprint_separated(to::IOStream, list, sep, before,after)
+    write(to, before)
+    if !isempty(list)
+        pprint(to, list[1])
+        for el in list[2:]
+            write(to, sep)
+            pprint(to, el)
+        end
+    end
+    write(to, after)
+end
+
+#Pretty print.
 function pprint(to::IOStream, e::Expr)
-    name,args = (e.head==:call ? (e.args[1],e.args[2:]) : (e.head, e.args))
+    name,args = (e.head,e.args)
     @case name begin
-        if symbol("typealias")
-            tp = args[2]
-            if tp.head==symbol("type") #TODO move this logic to 
-                write(to, "type $(tp.args[1])\n")
-#                assert( isa(tp.args[2], Expr) && tp.head==:block )
-                for component in tp.args[2].args
-                    write(to, "  ")
-                    pprint(to, component)
-                    write(to, "\n")
-                end
-                write(to, "end\n")
-            else
-                write(to, "typealias")
-                for a in args
-                    write(to," ")
-                    pprint(to, a)
-                end
-                write(to,"\n")
-            end
-        end
-        if :macrocall
-            pprint(to,args[1])
-            for a in args[2:]
-                write(to," ")
-                pprint(to,a)
-            end
-            write(to,"\n")
-        end
-        if symbol("type")
-            #TODO
-        end
-        if symbol("::")
+        symbol("typealias") : pprint_separated(to, args, " ", "typealias ","\n")
+        :macrocall          : pprint_separated(to, args, " ","","\n")
+        symbol("type")      : pprint_separated(to, args[2].args, 
+                                               "\n  ","type $(args[1])\n  ","\nend")
+        symbol("::")        : pprint_separated(to, args, "::", "","")
+        if :curly
             pprint(to, args[1])
-            write(to, "::")
-            pprint(to, args[2])
+            pprint_separated(to, args[2:], ", ", "{","}")
         end
-        if name
-            pprint(to, name)
-            write(to, "(")
-            if !isempty(args)
-                pprint(to,args[1])
-                for a in args[2:]
-                    write(to,",")
-                    pprint(to,a)
-                end
-            end
-            write(to,")")
+        if :call
+            pprint(to, args[1])
+            pprint_separated(to, args[2:], ", ", "(",")")
         end
         default : error("Dont know what to do with head $name")
-        
     end
     return nothing
 end
+#Void makes more sense for the purpose of C FFI.
+pprint(to::IOStream, thing::UnionKind) = 
+    (thing==None ? write(to,"Void") : print(to,thing))
 pprint{T}(to::IOStream, thing::T) = print(to,thing)
+
 pprint{T}(thing::T) = pprint(stdout_stream, thing)

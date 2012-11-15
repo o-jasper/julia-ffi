@@ -194,7 +194,9 @@ function c_parse_type(arr::Array{Any,1})
     end
     while true
         @case arr[1] begin
-             "__attribute__"                             : (arr = arr[3:])
+            if "__attribute__"
+                error("__attribute__ should have been stripped at this point.")
+            end
             "__restrict" | "const" | "extern" | "inline" : (arr = arr[2:])
             default : break
         end
@@ -271,14 +273,67 @@ function c_parse_args{T}(arr::Array{T,1})
     end
 end
 
+type CAttribute
+    visibility::Symbol
+    noreturn_p::Bool
+    const_p::Bool
+    full
+    thing
+end
+CAttribute() = CAttribute(:unknown,false,false, nothing,nothing)
+
+function strip_attribute(arr)
+    list = {}
+    attr = CAttribute()
+    i=1
+    while i <= length(arr)
+        if arr[i]=="__attribute__"
+            here = arr[i+1]
+            attr.full = here
+            if isa(here, TExpr)
+                assert( here.head=="(" && length(here.body)==1 &&
+                        here.body[1].head=="(" )
+                barr = here.body[1].body
+                for j = 1:length(barr) in
+                    @case barr[j] begin
+                        if "visibility" 
+                            assert(isa(barr[j+1], TExpr))
+                            assert(length(barr[j+1].body)==1)
+                            el= barr[j+1].body[1]
+                            assert(isa(el, String) && el[1]=='"' && last(el)=='"')
+                            attr.visibility = symbol(butlast(el)[2:])
+                        end
+                        "noreturn" : (attr.noreturn_p = true)
+                        "const"    : (attr.const_p = true)
+                        #"format" #Not sure if to 
+                    end
+                end
+            end
+            i+=2
+        else
+            push(list, arr[i])
+            i+=1;
+        end
+    end
+    return list, attr
+end
+
+type CHash #TODO bad name.
+    note
+    thing
+end
+
 function c_parse_top{T}(arr::Array{T,1})
     arr = split_flatten(arr, " \t\n")
     while !isempty(arr) && isa(arr[1], TExpr)
         assert(contains(["#","//","/*"], arr[1].head))
+        if arr[1].head=="#"
+            return CHash(arr[1],c_parse_top(arr[2:]))
+        end
         arr = arr[2:]
     end
     if isempty(arr)
-        return arr
+        return
     end
     assert(isa(arr[1],String), arr)
     arr = split_pointers(arr, "*")
@@ -296,8 +351,9 @@ function c_parse_top{T}(arr::Array{T,1})
                 return c_parse_top(new_arr)
             end
             assert(name!="")
-            type_arr = arr[1:i-1]
-            return CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
+            type_arr,attr = strip_attribute(arr[1:i-1])
+            attr.thing = CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
+            return (isequal(attr.full, nothing) ? attr.thing : attr)
         elseif last_el.head=="[" #TODO more robust..
             pre_last = arr[length(arr)-1]
             assert(isa(pre_last,String))

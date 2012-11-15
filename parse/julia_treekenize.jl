@@ -13,11 +13,11 @@ bin_el(str::String,sym::Symbol) = (str,sym,nothing)
 bin_el(str::String) = bin_el(str,symbol(str))
 
 julia_treekenizer_set =
-    {("(",")"),("[","]"),  #Order matters!
-     ("/*", "*/"),("//", "\n"),("#","\n"), bin_el(";"),
+    {("(",")"),("[","]"),("{","}").  #Order matters!
+     ("@", "\n"),("#","\n"), bin_el(";"),
      ("begin","end"), ("function","end"),("let","end"), ("type","end"),
      ("quote","end"),
-     ("typealias", "\n")
+     ("typealias", "\n"), ("@", "\n")
 #     bin_el(","), bin_el(";"), 
 #     bin_el(" ", :white), bin_el("\t", :white),bin_el("\n", :white),
 #     bin_el("+"), bin_el("-"), bin_el("*"),bin_el("/"),
