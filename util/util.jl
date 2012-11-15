@@ -12,7 +12,9 @@ export isnothing,
        @with,no_longer_with, 
        stream_from_string,find_index,
        last,thelast,butlast,
-       @case_of, @case,@cond
+       @case_of, @case,@cond,
+       @compose, 
+       @collect
 
 #----no more module stuff.
 
@@ -135,5 +137,34 @@ macro each_cond(clauses)
   end
   return esc(Expr(:block, map(when_clause, clauses.args),Any))
 end
- 
+
+#Composes functions. 
+macro compose(args...)
+    assert(isa(args, Tuple))
+    call(list, x) = (isempty(list) ? x : Expr(:call,{list[1],call(list[2:],x)},Any))
+    return :(x -> $(call(args,:x)))
+end
+#TODO curry,rcurry
+
+#Convenient way to make a collector.
+macro collect(args...)
+    assert(isa(args, Tuple))
+    assert(length(args)<=3)
+    
+    fun(a::(Expr,))       = (gensym(),:collect, a[1])
+    fun(a::(Symbol,Expr)) = (a[1],:collect, a[2])
+    fun(a::(Symbol,Symbol,Expr)) = a
+
+    list_var,collect_fun,body = fun(args)
+    non_nothing_fun = symbol("$(collect_fun)_non_nothing")
+    return esc(quote
+        $list_var = {}
+        $(Expr(:call, {collect_fun,:x},Any)) = push($list_var,x)
+        $(Expr(:call, {non_nothing_fun,:x},Any)) = push($list_var,x)
+        $(Expr(:call, {non_nothing_fun,:(x::Nothing)},Any)) = $list_var
+        $body
+        $list_var
+    end)
+end
+
 end #module JasperUtil
