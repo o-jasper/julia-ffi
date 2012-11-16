@@ -1,11 +1,13 @@
 #
-#  Copyright (C) 12-11-2012 Jasper den Ouden.
+#  Copyright (C) 16-11-2012 Jasper den Ouden.
 #
 #  This is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published
 #  by the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
 #
+
+#TODO make it a module, export needed stuff.
 
 import Base.*, OptionsMod.*
 import GetC.*
@@ -119,43 +121,42 @@ function ffi_type{T}(tp::Array{T,1}, info)
     return name
 end
 
-#Pretty prints separated by some symbol with stuff to write before and after.
-function pprint_separated(to::IOStream, list, sep, before,after)
-    write(to, before)
-    if !isempty(list)
-        pprint(to, list[1])
-        for el in list[2:]
-            write(to, sep)
-            pprint(to, el)
+#To FFI code in data from.
+function to_ffi{T}(from::T, try_cnt::Integer)
+    info = FFI_Info(:gllib)
+    @collect begin
+        fun(x) = collect_non_nothing(ffi_top(x,info))
+        to_cexpr(from,try_cnt,fun)
+    end
+end
+to_ffi{T}(from::T) = to_ffi(from, default_try_cnt)
+
+#To (via ffi)pretty printed.
+function to_pprint{T}(from::T,info::FFI_Info, to::IOStream, try_cnt::Integer)
+    function fun(x)
+        ffi = ffi_top(x, info)
+        if !isequal(ffi, nothing)
+            pprint(to, ffi)
+            println(to)
         end
     end
-    write(to, after)
+    to_cexpr(from,try_cnt, fun)
+    return info
 end
-
-#Pretty print.
-function pprint(to::IOStream, e::Expr)
-    name,args = (e.head,e.args)
-    @case name begin
-        symbol("typealias") : pprint_separated(to, args, " ", "typealias ","\n")
-        :macrocall          : pprint_separated(to, args, " ","","\n")
-        symbol("type")      : pprint_separated(to, args[2].args, 
-                                               "\n  ","type $(args[1])\n  ","\nend")
-        symbol("::")        : pprint_separated(to, args, "::", "","")
-        if :curly
-            pprint(to, args[1])
-            pprint_separated(to, args[2:], ", ", "{","}")
-        end
-        if :call
-            pprint(to, args[1])
-            pprint_separated(to, args[2:], ", ", "(",")")
-        end
-        default : error("Dont know what to do with head $name")
-    end
-    return nothing
+#TODO export everything.
+function to_pprint{T}(from::T,to::IOStream, opts::Options)
+    @defaults opts on_file = "" try_cnt = default_try_cnt
+    assert(on_file!="")
+    @defaults opts lib_var = symbol(split(basename(on_file),".")[1])
+    @defaults opts lib_file = "$lib_var" module_name = lib_var
+    @defaults opts info = FFI_Info(lib_var, on_file, opts)
+    
+    #TODO module name.
+    pprint(to, :($lib_var = dlopen($lib_file)))
+    println(to)
+    to_pprint(from,info, to, try_cnt)
 end
-#Void makes more sense for the purpose of C FFI.
-pprint(to::IOStream, thing::UnionKind) = 
-    (thing==None ? write(to,"Void") : print(to,thing))
-pprint{T}(to::IOStream, thing::T) = print(to,thing)
-
-pprint{T}(thing::T) = pprint(stdout_stream, thing)
+to_pprint{T}(from::T,to::String, opts::Options) =
+    @with s = open(to,"w") to_pprint(from,s, opts)
+to_pprint{T}(from::T, opts::Options) =
+    to_pprint(from, stdout_stream, opts)

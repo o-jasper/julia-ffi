@@ -1,11 +1,13 @@
 #
-#  Copyright (C) 05-11-2012 Jasper den Ouden.
+#  Copyright (C) 16-11-2012 Jasper den Ouden.
 #
 #  This is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published
 #  by the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
 #
+
+#TODO make it a module.
 
 #TODO still bug, somehow eating ')' into symbols??
 
@@ -371,3 +373,30 @@ function c_parse_top{T}(arr::Array{T,1})
     end
     error("Ended up here $arr $last_el")
 end
+
+#Finally the shown end.
+const default_try_cnt = 32
+
+#To C parsed, with function to do other stuff.
+function to_cexpr(from::IOStream, try_cnt::Integer, what::Function)
+    try_n=0
+    while try_n<try_cnt
+        got = c_parse_top(from)
+        if isequal(got, nothing)
+            try_n+=1
+        else
+            try_n=0
+             what(got)
+        end
+    end
+end
+to_cexpr(from::String, try_cnt::Integer, what::Function) =
+    @with s=open(from,"r") to_cexpr(s, try_cnt,what)
+function to_cexpr{T}(from::Array{T,1}, try_cnt::Integer,what::Function)
+    for el in from
+        if !isequal(el, nothing)
+            what(el)
+        end
+    end
+end
+to_cexpr{T}(from::T, what::Function) = to_cexpr(from, default_try_cnt,what)

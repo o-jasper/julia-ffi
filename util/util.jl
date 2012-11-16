@@ -151,6 +151,7 @@ macro collect(args...)
     assert(isa(args, Tuple))
     assert(length(args)<=3)
     
+    fun(a::())            = (gensym(),:collect, :nothing)
     fun(a::(Expr,))       = (gensym(),:collect, a[1])
     fun(a::(Symbol,Expr)) = (a[1],:collect, a[2])
     fun(a::(Symbol,Symbol,Expr)) = a
