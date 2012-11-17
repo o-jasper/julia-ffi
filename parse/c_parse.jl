@@ -27,10 +27,11 @@ c_treekenizer_set =
 #     bin_el("||"),bin_el("&&"),bin_el("!"),
 #     bin_el("|"), bin_el("&"), bin_el("~"),
      bin_el(":"), bin_el("case")}
+c_not_incorrect = {")","]","}","*/"} #These shouldnt happen early.
 
 c_parse_top(s::IOStream) = c_parse_top(ConvenientStream(s))
 c_parse_top(s::ConvenientStream) =
-    c_parse_top(treekenize(s, c_treekenizer_set, ";", 10,2))
+    c_parse_top(treekenize(s, (c_treekenizer_set,c_not_incorrect), ";", 10,2))
 
 #TODO many utility-like functions..
 

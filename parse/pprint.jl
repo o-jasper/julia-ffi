@@ -11,6 +11,8 @@
 # for more general use at the moment.
 module PrettyPrint
 
+import Base.*, OJasper_Util.*
+
 export pprint, pprint_separted
 
 #--- no more module stuff.

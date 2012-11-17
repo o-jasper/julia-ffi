@@ -3,6 +3,7 @@
 load("util/util.jl")
 load("util/get_c.jl")
 
+load("autoffi/helper.jl") #gah i wish `import` would load it...
 load("autoffi/gl.jl")
 load("ffi_extra/gl.jl")
 

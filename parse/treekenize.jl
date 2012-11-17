@@ -12,11 +12,12 @@ module Treekenize
 import Base.*
 
 export treekenize, TExpr #Function for making trees itself.
+export none_incorrect
 #Each element needs these to know what to do.
 export el_head, el_start,el_end,el_seeker
 
 #Some extra transformations.(might move to other module)
-export infix_syms, combine_heads,remove_heads, remove_heads_1
+#export infix_syms, combine_heads,remove_heads, remove_heads_1
 
 export ConvenientStream
 
@@ -25,9 +26,9 @@ export ConvenientStream
 type ConvenientStream #TODO not quite the right place to put this.
     stream::IOStream
     line::String
-    line_n::Int32
+    line_n::Int64
 end
-ConvenientStream(stream::IOStream) = ConvenientStream(stream,"",int32(0))
+ConvenientStream(stream::IOStream) = ConvenientStream(stream,"",int64(0))
 #Pass on @with duties.
 no_longer_with(cs::ConvenientStream) = no_longer_with(cs.stream)
 
@@ -58,15 +59,27 @@ function treekenize(stream::ConvenientStream, seeker::Function, end_str,
     return treekenize(stream, new_seeker, el_end(new_seeker),
                       limit_n,max_len)
 end
+
+type IncorrectEnd
+    initial_n::Int64 #Where it started.
+    incorrect_n::Int64 #Where it ended with an incorrect ending symbol.
+    
+    correct_end
+    got
+end
+
+#TODO some bug, skipping too far forward i think(small possibility bad params in c_parse)
 #Turns a stream into a tree of stuff.
-function treekenize(stream::ConvenientStream, seeker::Array, end_str,
+function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
                     limit_n::Integer, max_len::Integer)
+    seeker,not_incorrect = which
     list = {}
     n=0
+    initial_n = stream.line_n
     readline(stream)
     while n< limit_n
         pick = nothing
-        min_s = typemax(Int32)
+        min_s = typemax(Int64)
         min_e = 0
         search_str = stream.line
         for el in seeker
@@ -81,11 +94,21 @@ function treekenize(stream::ConvenientStream, seeker::Array, end_str,
             end
         end
         s,e = search(search_str, end_str)
-
-        if s!=0 && s<min_s #Ended before starting symbol.
+        search_str = search_str[1:s-1] #Warning about this guy.
+        assert(s==0 || s<e)
+      #Look for spurious enders.
+        for el in not_incorrect
+            s2,e2 = search(search_str, el)
+            #Shouldnt be inside subtree, that might be allowed.
+            if s2!=0 && min_s!=0 && s2<min_s 
+                throw(IncorrectEnd(initial_n, stream.line_n, end_str, el))
+            end
+        end
+        
+        if s!=0 && s<min_s #Ended before some subtree starting symbol.
             n=0
             if s>1
-                push(list, search_str[1:s-1])
+                push(list, search_str) #[1:s-1] (already done)
             end
             stream.line = stream.line[e:]
             return list #Go up a level.
@@ -100,19 +123,37 @@ function treekenize(stream::ConvenientStream, seeker::Array, end_str,
             stream.line = stream.line[min_e:] #Skip to it.
            #Push branch.
             push(list, TExpr(el_head(pick),
-                             treekenize(stream, el_seeker(seeker,pick),
+                             treekenize(stream, el_seeker(which,pick),
                                         el_end(pick), 
                                         limit_n, max_len)))
         end
     end
     #TODO failed to end everything, this is potentially an error!
     #Which line failed?
+#    error("How did i get here?")
     return list
 end
 
-treekenize(stream::IOStream, seeker::Array, end_str,
+treekenize(stream::IOStream, which::(Array,Array), end_str,
            limit_n::Integer, max_len::Integer) = 
-    treekenize(ConvenientStream(stream), seeker, end_str, limit_n,max_len)
+    treekenize(ConvenientStream(stream), which, end_str, limit_n,max_len)
+
+#not_incorrect defaults to not checking anything.
+treekenize{T}(thing::T, seeker::Array, end_str, 
+              limit_n::Integer, max_len::Integer) =
+    treekenize(thing, (seeker,{}), end_str, limit_n,max_len)
+
+#If _all_ the given seekers may not be present incorrectly, this tries to
+# make the list to detect it.
+function none_incorrect(seeker::Array)
+    list = {}
+    for el in seeker
+        if isa(el,Tuple) && length(el)>=2 && isa(el[2],String)
+            push(list, el[2])
+        end
+    end
+    return list
+end
 
 el_head{T}(el::T) = el_start(el)
 

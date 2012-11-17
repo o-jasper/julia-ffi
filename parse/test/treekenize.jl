@@ -15,7 +15,7 @@ function rnd_tree(to_stream::IOStream, p::Number,  depth::Integer,max_len::Integ
     for i = 1:randi(max_len)
         if rand() < p #deepen
             j = randi(length(begin_end)) #Random 'parentheses'.
-            b,e = begin_end[j] 
+            b,e = begin_end[j]
             write(to_stream, b)
             push(list, rnd_tree(to_stream,p, depth-1,max_len,begin_end))
             write(to_stream, e)
@@ -34,7 +34,8 @@ function test_treekenize(p::Number,  depth::Integer,max_len::Integer,
     tree = rnd_tree(stream, p,depth,max_len, begin_end)
     write(stream, ";\n");
     seek(stream,0) #Back to the beginning.
-    read_tree = treekenize(stream, begin_end,";\n",10, max_be_len)
+    read_tree = treekenize(stream, (begin_end, none_incorrect(begin_end)),
+                           ";\n",10, max_be_len)
     
     compare_tree(tree, compare::TExpr) = compare_tree(tree, compare.body)
     function compare_tree(tree, compare)
@@ -63,9 +64,12 @@ function test_treekenize(p::Number,  depth::Integer,max_len::Integer,
     compare_tree(tree, read_tree)
 end
 
+#TODO insert incorrectly placed ending/beginning parentheses and see if 
+# the checker finds them at the right spots.
+
 function test(cnt::Integer)
     for n = 1:cnt #TODO may want to test a larger variation of beginnings and ends.
-        test_treekenize(0.4, 4,4, {("(",")"), ("ska","skoe")},4)
+        test_treekenize(0.4, 4,4, {("(",")"), ("ska","skoe"), ("[","]")},4)
     end
 end
 

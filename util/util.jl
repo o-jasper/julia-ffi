@@ -146,7 +146,8 @@ macro compose(args...)
 end
 #TODO curry,rcurry
 
-#Convenient way to make a collector.
+#Convenient way to make a collector. 
+#NOTE: to use or not too... saves symbols, but also a dependency/unfamliar?
 macro collect(args...)
     assert(isa(args, Tuple))
     assert(length(args)<=3)
