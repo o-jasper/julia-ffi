@@ -16,9 +16,11 @@ import OJasper_Util.*
 bin_el(str::String,sym::Symbol) = (str,sym,nothing)
 bin_el(str::String) = bin_el(str,symbol(str))
 
-c_treekenizer_set =
-    {("/*", "*/"),("//", "\n"),("#","\n"),
-     ("(",")"),("[","]"),("{","}"),  #Order matters!
+c_treekenizer_set = #Order matters!
+    {#Comments, note that they dont require further treekenizing.
+     ("/*", "*/", ({},{})),("//", "\n", ({},{})),("#","\n", ({},{})), 
+     #Parentheses-like
+     ("(",")"),("[","]"),("{","}"),  
 #     bin_el(";"), #Not this one, it is where treekenize stops on.
 #Not these, infixing does it from strings.
 #     bin_el(","), bin_el(";"),  
@@ -30,8 +32,15 @@ c_treekenizer_set =
 c_not_incorrect = {")","]","}","*/"} #These shouldnt happen early.
 
 c_parse_top(s::IOStream) = c_parse_top(ConvenientStream(s))
-c_parse_top(s::ConvenientStream) =
-    c_parse_top(treekenize(s, (c_treekenizer_set,c_not_incorrect), ";", 10,2))
+function c_parse_top(s::ConvenientStream)
+    tree = treekenize(s, (c_treekenizer_set,c_not_incorrect), ";", 10,2)
+#    for el in tree
+#        print(el)
+#        print("|")
+#    end
+#    println()
+    return c_parse_top(tree)
+end
 
 #TODO many utility-like functions..
 

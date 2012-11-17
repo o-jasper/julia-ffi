@@ -33,14 +33,13 @@ ConvenientStream(stream::IOStream) = ConvenientStream(stream,"",int64(0))
 no_longer_with(cs::ConvenientStream) = no_longer_with(cs.stream)
 
 #TODO add counting newlines to ConvenientStream.
-function forward(cs::ConvenientStream, n::Integer)
-    if n>length(cs.line)
-        cs.line = readline(cs.stream)[n-length(cs.line):]
-    else
-        cs.line = cs.line[n+1:]
-    end
-    return nothing
-end
+#function forward(cs::ConvenientStream, n::Integer)
+#    if n+1>=length(cs.line)
+#        readline(cs)
+#    end
+#    cs.line = cs.line[n+1:]
+#    return nothing
+#end
 function readline(cs::ConvenientStream)
     cs.line_n += 1
     cs.line = "$(cs.line)$(readline(cs.stream))"
@@ -68,7 +67,9 @@ type IncorrectEnd
     got
 end
 
-#TODO some bug, skipping too far forward i think(small possibility bad params in c_parse)
+#TODO some bug, seems to mysteriously skipping over the info i need. 
+#Printing all that is skipped doesnt show it, nothing else is using the stream...
+
 #Turns a stream into a tree of stuff.
 function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
                     limit_n::Integer, max_len::Integer)
@@ -81,7 +82,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
         pick = nothing
         min_s = typemax(Int64)
         min_e = 0
-        search_str = stream.line
+        search_str = copy(stream.line) #Not really needed(presumably..)
         for el in seeker
             s,e = search(search_str, el_start(el))
             if s!=0 && s< min_s
@@ -100,7 +101,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
         for el in not_incorrect
             s2,e2 = search(search_str, el)
             #Shouldnt be inside subtree, that might be allowed.
-            if s2!=0 && min_s!=0 && s2<min_s 
+            if s2!=0 && min_e!=0 && s2<min_s 
                 throw(IncorrectEnd(initial_n, stream.line_n, end_str, el))
             end
         end
@@ -110,6 +111,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
             if s>1
                 push(list, search_str) #[1:s-1] (already done)
             end
+#            println(e, '|',stream.line[1:e],'|')
             stream.line = stream.line[e:]
             return list #Go up a level.
         elseif pick==nothing #got nothing.
@@ -120,6 +122,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
             if min_s>1
                 push(list, stream.line[1:min_s-1]) #Push what is here.
             end
+#            println(min_e, '|',stream.line[1:min_e],'|')
             stream.line = stream.line[min_e:] #Skip to it.
            #Push branch.
             push(list, TExpr(el_head(pick),
@@ -130,7 +133,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
     end
     #TODO failed to end everything, this is potentially an error!
     #Which line failed?
-#    error("How did i get here?")
+    error("How did i get here?")
     return list
 end
 
