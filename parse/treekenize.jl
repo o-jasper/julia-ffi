@@ -32,17 +32,15 @@ ConvenientStream(stream::IOStream) = ConvenientStream(stream,"",int64(0))
 #Pass on @with duties.
 no_longer_with(cs::ConvenientStream) = no_longer_with(cs.stream)
 
-#TODO add counting newlines to ConvenientStream.
-#function forward(cs::ConvenientStream, n::Integer)
-#    if n+1>=length(cs.line)
-#        readline(cs)
-#    end
-#    cs.line = cs.line[n+1:]
-#    return nothing
-#end
+function forward(cs::ConvenientStream, n::Integer)
+#    print("|",cs.line[1:n])
+    cs.line = cs.line[n:]
+end
 function readline(cs::ConvenientStream)
     cs.line_n += 1
-    cs.line = "$(cs.line)$(readline(cs.stream))"
+    add_line = readline(cs.stream)
+#    print(add_line, "|")
+    cs.line = "$(cs.line)$add_line"
 end
 
 type TExpr
@@ -82,6 +80,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
         pick = nothing
         min_s = typemax(Int64)
         min_e = 0
+        
         search_str = copy(stream.line) #Not really needed(presumably..)
         for el in seeker
             s,e = search(search_str, el_start(el))
@@ -109,10 +108,10 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
         if s!=0 && s<min_s #Ended before some subtree starting symbol.
             n=0
             if s>1
+                assert( length(search_str) == s-1 )
                 push(list, search_str) #[1:s-1] (already done)
             end
-#            println(e, '|',stream.line[1:e],'|')
-            stream.line = stream.line[e:]
+            forward(stream, e)
             return list #Go up a level.
         elseif pick==nothing #got nothing.
             n+=1
@@ -122,8 +121,7 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
             if min_s>1
                 push(list, stream.line[1:min_s-1]) #Push what is here.
             end
-#            println(min_e, '|',stream.line[1:min_e],'|')
-            stream.line = stream.line[min_e:] #Skip to it.
+            forward(stream, min_e)
            #Push branch.
             push(list, TExpr(el_head(pick),
                              treekenize(stream, el_seeker(which,pick),
@@ -132,15 +130,14 @@ function treekenize(stream::ConvenientStream, which::(Array,Array), end_str,
         end
     end
     #TODO failed to end everything, this is potentially an error!
-    #Which line failed?
-    error("How did i get here?")
+    # Problem is that i dont see a good way to check if it is eof.. (no mention)
     return list
 end
 
 treekenize(stream::IOStream, which::(Array,Array), end_str,
            limit_n::Integer, max_len::Integer) = 
     treekenize(ConvenientStream(stream), which, end_str, limit_n,max_len)
-
+    
 #not_incorrect defaults to not checking anything.
 treekenize{T}(thing::T, seeker::Array, end_str, 
               limit_n::Integer, max_len::Integer) =
