@@ -3,8 +3,7 @@
 load("util/util.jl") #I don't wanna do it manually anymore
 load("util/tabbed_data.jl")
 
-import OJasper_Util.*
-import TabbedData.*
+using OJasper_Util, TabbedData
 
 #Random tabbed file into stream.
 function make_tabbed_file(stream::IOStream, 

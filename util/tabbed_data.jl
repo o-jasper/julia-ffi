@@ -3,8 +3,7 @@
 
 module TabbedData
 
-import Base.* 
-import OJasper_Util.*
+using Base, OJasper_Util
 
 export read_tabbed_data
 

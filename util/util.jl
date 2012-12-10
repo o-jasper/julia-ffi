@@ -6,17 +6,36 @@ module OJasper_Util
 # NOTE/TODO: 
 # * At least some of these have better alternatives in standard libs?
 # * With the ones that don't, do...
-import Base.* 
+using Base
 
 export isnothing,
        @with,no_longer_with, 
        stream_from_string,find_index,
-       last,thelast,butlast,
-       @case_of, @case,@cond,
+       last,thelast,butlast
+export @case_of, @case,@cond,
        @compose, 
        @collect
 
+export find_file_from_dirs
+
 #----no more module stuff.
+
+#Similar to `find_in_path`, but that function seems to look in /src/ too.
+# `is_file_readable` giving me trouble with nonexistant directories.
+function find_file_from_dirs(name::String, dir_list::Array)
+    name[1] == '/' && return realpath(name)
+    isfile(name) && return realpath(name)
+    for prefix in dir_list
+#     base = name #TODO more like `find_in_path`
+#        path = strcat(prefix,"/",base,"/src/",name) #Was in `find_in_path`, 
+# doesnt make sense to me. Also, `stat` doesnt like it.
+#        is_file_readable(path) && return realpath(path)
+        path = strcat(prefix,"/",name)
+        is_file_readable(path) && return realpath(path)
+    end
+    return realpath(name)
+end
+
 
 #Depreciated. TODO remove.
 isnothing(thing) = isequal(thing,nothing)

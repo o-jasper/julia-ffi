@@ -4,7 +4,11 @@
 module ExpandingArrayModule
 #Expanding arrays with arbitrary setting of indices.
 
-import Base.* 
+using Base
+
+import Base.ref, Base.assign, Base.zero
+import Base.max,Base.min
+import Base.start,Base.next,Base.done
 
 export ExpandingArray, ExpandingArray2d,
        min_i,max_i, min_j,max_j,

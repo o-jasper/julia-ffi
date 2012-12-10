@@ -1,10 +1,9 @@
-#  Jasper den Ouden 02-08-2012
+#  Jasper den Ouden 05-12-2012
 # Placed in public domain.
 
 module GetC
-#Makes finding/loading .so files and FFI-ing C more convenient.
 
-import Base.* 
+using Base, OJasper_Util
 
 export find_so_file_path, load_so
 export @get_c_fun
@@ -12,18 +11,8 @@ export @get_c_fun
 #----no more module stuff.
 
 #Loads a so, and checks if it exists, if not user probably didn't run make.
-function find_so_file_path(so_file::String)
-  ret = nothing
-  try
-    ret = find_in_path(so_file)
-  catch
-    error("\n.so file seems missing, did you run make?
-File in question: $so_file
-(alternatively, didn't compile otherwise, the file wasn't available from
-your directory.)\n")
-  end
-  return ret
-end
+find_so_file_path(so_file::String) = find_file_from_dirs(so_file, LOAD_PATH)
+
 #dlopens using `find_so_file` to locate the file.
 load_so(so_file::String) =
     dlopen(find_so_file_path(so_file))
@@ -35,7 +24,7 @@ const _error_third_must_be_in_form = "Third argument must be in form
 `function(Type1,Type2,argument::Type3 ..etc..)::ReturnType`"
 
 #Defines a function using dlsym to obtain a function from dlsym.
-macro get_c_fun (dlopen_lib, to_name, from_fun)
+macro get_c_fun(dlopen_lib, to_name, from_fun)
   assert(isa(to_name,Symbol), "The function must be 'assigned' to a symbol,\
  :auto to name it after the C name. Have non-symbol $to_name")
   assert(isa(from_fun,Expr), _error_third_must_be_in_form)

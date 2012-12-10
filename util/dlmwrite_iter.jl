@@ -4,8 +4,7 @@
 module DlmWriteIter
 #dlmwrite for arbitrary iterators.
 
-import Base.* 
-import OJasper_Util.*
+using Base, OJasper_Util
 
 #----no more module stuff.
 
