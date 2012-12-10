@@ -1,14 +1,14 @@
 
 load("treekenize.jl")
-import Treekenize.*
+using Treekenize
 load("util/util.jl")
-import OJasper_Util.*
+using OJasper_Util
 
 load("Options.jl")
 load("util/get_c.jl")
 load("c_parse.jl")
 
 load("pprint.jl")
-import PrettyPrint.*
+using PrettyPrint
 
 load("c_ffi.jl")

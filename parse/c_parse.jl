@@ -31,14 +31,10 @@ const c_treekenizer_set = #Order matters!
      bin_el(":"), bin_el("case")}
 const c_not_incorrect = {")","]","}","*/"} #These shouldnt end early.
 
-c_parse_top(s::IOStream) = c_parse_top(ConvenientStream(s))
+#TODO hmm, making new convenientstream has the danger of losing data.
+#c_parse_top(s::IOStream) = c_parse_top(ConvenientStream(s)) 
 function c_parse_top(s::ConvenientStream)
     tree = treekenize(s, (c_treekenizer_set,c_not_incorrect), ";", 10,2)
-#    for el in tree
-#        print(el)
-#        print("|")
-#    end
-#    println()
     return c_parse_top(tree)
 end
 
@@ -342,20 +338,20 @@ end
 #Just handles whitespace and comments.
 function c_top_prepare(arr::Array)
     arr = split_flatten(arr, " \t\n")
-    while !isempty(arr) && isa(arr[1], TExpr)
+    if !isempty(arr) && isa(arr[1], TExpr)
         assert(contains(["#","//","/*"], arr[1].head))
-        if arr[1].head=="#" #TODO do want it..
-            return CHash(arr[1],c_parse_top(arr[2:]))
-        end
-        arr = arr[2:]
+        return CHash(arr[1],c_parse_top(arr[2:]))
     end
     return arr
 end
 
 function c_parse_top(arr::Array)
     arr = c_top_prepare(arr)
-    if isa(arr, CHash) || isempty(arr)
+    if isa(arr, CHash)
         return arr
+    end
+    if isempty(arr)
+        return nothing
     end
     assert(isa(arr[1],String), arr)
     arr = split_pointers(arr, "*")
@@ -430,3 +426,4 @@ function to_cexpr{T}(from::Array{T,1}, try_cnt::Integer,what::Function)
     end
 end
 to_cexpr{T}(from::T, what::Function) = to_cexpr(from, default_try_cnt,what)
+to_cexpr{T}(from::T) = @collect to_cexpr(from, default_try_cnt, (x,y)->collect(y))
