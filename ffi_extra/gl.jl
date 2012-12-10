@@ -4,7 +4,10 @@
 module FFI_Extra_GL
 
 #Handy stuff to make use of Julia features.
-import Base.*, OJasper_Util.*, AutoFFI_GL.*
+using Base, OJasper_Util, AutoFFI_GL
+
+import OJasper_Util.no_longer_with
+import AutoFFI_GL.glenable, AutoFFI_GL.gldisable
 
 export glvertex, glcolor,glcolorb, gltexcoord,glnormal,
        glscale, gltranslate, glrotate,glrotate_r,
@@ -14,39 +17,40 @@ export glvertex, glcolor,glcolorb, gltexcoord,glnormal,
        rect_vertices, vertices_rect_around
 # glenable (covered by autoFFI)
        
+# TODO no more module stuff below, right?
 
 #Macro to conveniently also support tupled arguments.
 # (TODO probably move elsewhere)
 macro also_tuple(of, to)
-  function getwhich(given::Expr)
-    if given.head == symbol(":")
-      assert( length(given.args) <=2 )
-      return given.args[1]:given.args[2]
+    function getwhich(given::Expr)
+        if given.head == symbol(":")
+            assert( length(given.args) <=2 )
+            return given.args[1]:given.args[2]
+        end
+        if given.head == :tuple
+            return given.args
+        end
+        error("Invalid specification of the lengths of tuples: $to
+              Should be a tuple or range.") #TODO this could be better.
     end
-    if given.head == :tuple
-      return given.args
-    end
-    error("Invalid specification of the lengths of tuples: $to
-Should be a tuple or range.") #TODO this could be better.
-  end
-  getwhich(given::Integer) = {given}
-  ret = {}
-#  nT(n) = map((i->(:T)), 1:n)
-  for n = getwhich(to)
-    push(ret, 
-         Expr(:function,
+    getwhich(given::Integer) = {given}
+    ret = {}
+    #  nT(n) = map((i->(:T)), 1:n)
+    for n = getwhich(to)
+        push(ret, 
+             Expr(:function,
 #TODO templated it earlier, but unequal argument types make that not work.
 #                   {Expr(:call, {Expr(:curly, {of,:T}, Any),
 #                                 Expr(symbol("::"),
 #                                      {:x,Expr(:tuple,nT(n),Any)},Any)},Any),
-              {Expr(:call, 
-                    {of, Expr(symbol("::"),
-                              {:x,Expr(:tuple, map(i->(:Any), 1:n), Any)},
-                              Any)},Any),
-               Expr(:call,cat(1,{of},map((i)->:(x[$i]), 1:n)), Any)},
-              Any))
-  end
-  return esc(Expr(:block,ret, Any))
+                  {Expr(:call, 
+                        {of, Expr(symbol("::"),
+                                  {:x,Expr(:tuple, map(i->(:Any), 1:n), Any)},
+                                  Any)},Any),
+                   Expr(:call,cat(1,{of},map((i)->:(x[$i]), 1:n)), Any)},
+                  Any))
+    end
+    return esc(Expr(:block,ret, Any))
 end
 
 #Overloading stuff
@@ -121,23 +125,31 @@ glrotate_r(angle::Number, n::(Number,Number,Number)) =
 
 #Enabling lists of stuff.
 type _GlEnable
-  things::Vector
+    things::Vector
 end
 
 function glenable(things::Vector)
-  for thing in things
-    glenable(thing)
-  end
-  return _GlEnable(things)
+    for thing in things
+        glenable(thing)
+    end
+    return _GlEnable(things)
 end
-glenable(things...) = glenable(things)
+function glenable(things...) 
+    glenable(things[1])
+    glenable(things[2:]...)
+end
+glenable() = nothing
 #Disabling lists of stuff
 function gldisable(things::Vector)
-  for thing in things
-    gldisable(thing)
-  end
+    for thing in things
+        gldisable(thing)
+    end
 end
-gldisable(things...) = gldisable(things)
+function gldisable(things...) 
+    gldisable(things[1])
+    gldisable(things[2:]...)
+end
+gldisable() = nothing
 
 no_longer_with(enabled::_GlEnable) = gldisable(enabled.things) #!
 
@@ -152,8 +164,8 @@ no_longer_with(enabled::_GlEnable) = gldisable(enabled.things) #!
 type _GlPrimitive
 end
 function glprimitive(primitive)
-  glbegin(primitive)
-  return _GlPrimitive()
+    glbegin(primitive)
+    return _GlPrimitive()
 end
 no_longer_with(p::_GlPrimitive) = glend() #!
 
@@ -161,22 +173,22 @@ type _GlPushed
 end
 #glpushmatrix for with @with #TODO will want upgrade.
 function glpushed() 
-  glpushmatrix()
-  return _GlPushed()
+    glpushmatrix()
+    return _GlPushed()
 end
 no_longer_with(p::_GlPushed) = glpopmatrix() #!
 
 #More functions
 function unit_frame()
-  glloadidentity()
-  gltranslate(-1,-1)
-  glscale(2)
+    glloadidentity()
+    gltranslate(-1,-1)
+    glscale(2)
 end
 #Map the given range to the unit range.
 function unit_frame_from(fx::Number,fy::Number,tx::Number,ty::Number)
-  assert( fx!=tx && fy!=ty, "There might be a division by zero here.." )
-  glscale(1/(tx-fx),1/(ty-fy))
-  gltranslate(-fx,-fy)
+    assert( fx!=tx && fy!=ty, "There might be a division by zero here.." )
+    glscale(1/(tx-fx),1/(ty-fy))
+    gltranslate(-fx,-fy)
 end
 
 typealias Vector2 Union((Number,Number),Vector) #(just for here)
@@ -187,8 +199,8 @@ unit_frame_from(fr::Vector2, to::Vector2) =
 
 #Map the unit range to the given range.
 function unit_frame_to(fx::Number,fy::Number,tx::Number,ty::Number)
-  gltranslate(fx,fy)
-  glscale(tx-fx, ty-fy)
+    gltranslate(fx,fy)
+    glscale(tx-fx, ty-fy)
 end
 unit_frame_to(fr::Vector2, to::Vector2) = 
     unit_frame_to(fr[1],fr[2], to[1],to[2])
@@ -196,10 +208,10 @@ unit_frame_to(fr::Vector2, to::Vector2) =
 
 #Rectangle vertices (in QUADS, LINE_LOOP-able style)
 function rect_vertices(fx::Number,fy::Number,tx::Number,ty::Number)
-  glvertex(fx,fy)
-  glvertex(fx,ty)
-  glvertex(tx,ty)
-  glvertex(tx,fy)
+    glvertex(fx,fy)
+    glvertex(fx,ty)
+    glvertex(tx,ty)
+    glvertex(tx,fy)
 end
 rect_vertices(fr::Vector2, to::Vector2) = 
     rect_vertices(fr[1],fr[2], to[1],to[2])
