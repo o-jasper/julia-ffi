@@ -4,7 +4,7 @@
 module SDL_BadUtils
 #Loading images int GL and/or SDL.
 
-import Base.*, GetC.*,AutoFFI_GL.*
+using Base, GetC,AutoFFI_GL
 
 export init_stuff, finalize_draw, 
        mouse_x,mouse_y, poll_event,flush_events

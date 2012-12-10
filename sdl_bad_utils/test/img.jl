@@ -10,12 +10,8 @@ load("ffi_extra/gl.jl")
 load("sdl_bad_utils/sdl_bad_utils.jl")
 load("sdl_bad_utils/gl_sdl_load_img.jl")
 
-import OJasper_Util.*
-import SDL_BadUtils.*
-import GL_SDL_LoadImg.*
-
-import AutoFFI_GL.*
-import FFI_Extra_GL.*
+using OJasper_Util, SDL_BadUtils, GL_SDL_LoadImg
+using AutoFFI_GL, FFI_Extra_GL
 
 function texies() #TODO doesn't work, wrong ) or, ??
   @with glprimitive(GL_QUADS) begin
@@ -43,7 +39,8 @@ function run_this ()
 
   println("(Not error)Got to after SDL and GL init.")
 
-  img = gl_sdl_load_img(find_in_path("sdl_bad_utils/test/neverball_128.png"))
+  img = gl_sdl_load_img(find_file_from_dirs("sdl_bad_utils/test/neverball_128.png", 
+                                            LOAD_PATH))
   println("(Not error)Got to loaded image, GL assigned index $img")
 #  gldisable(GL_TEXTURE_2D)
 #  gldisable(GL_BLEND)
@@ -64,10 +61,11 @@ function run_this ()
       glvertex(mx(),my()+0.1)
     end
   #Draws the image we're testing with.
-    glenable({GL_TEXTURE_2D, GL_BLEND})
+    glenable(GL_TEXTURE_2D, GL_BLEND)
     glblendfunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glbindtexture(GL_TEXTURE_2D, img)
     texies()
-    gldisable({GL_TEXTURE_2D, GL_BLEND})
+    gldisable(GL_TEXTURE_2D, GL_BLEND)
     
     finalize_draw()
     flush_events()

@@ -9,10 +9,7 @@ load("ffi_extra/gl.jl")
 
 load("sdl_bad_utils/sdl_bad_utils.jl")
 
-import OJasper_Util.*
-import SDL_BadUtils.*
-import AutoFFI_GL.*
-import FFI_Extra_GL.*
+using OJasper_Util, SDL_BadUtils, AutoFFI_GL, FFI_Extra_GL
 
 function run_this ()
     screen_width = 640
