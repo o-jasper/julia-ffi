@@ -3,8 +3,7 @@ load("util/util.jl")
 load("parse/treekenize.jl")
 
 #import Base.*
-import Treekenize.*
-import OJasper_Util.*
+using Treekenize, OJasper_Util
 
 #Generates a random tree into stdout and returns the same list for later comparison.
 function rnd_tree(to_stream::IOStream, p::Number,  depth::Integer,max_len::Integer, begin_end)
@@ -23,6 +22,9 @@ function rnd_tree(to_stream::IOStream, p::Number,  depth::Integer,max_len::Integ
             x = rand()
             push(list,x)
             write(to_stream, "$x ") #Just spaced out random numbers.
+            for i = 1:randi(10)
+                write(to_stream, " ")
+            end
         end
     end
     return list

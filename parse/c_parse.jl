@@ -9,14 +9,14 @@
 
 #TODO make it a module.
 
-#TODO still bug, somehow eating ')' into symbols??
+#TODO move some of the tokenizing back?
 
-import OJasper_Util.*
+using OJasper_Util, Treekenize
 
 bin_el(str::String,sym::Symbol) = (str,sym,nothing)
 bin_el(str::String) = bin_el(str,symbol(str))
 
-c_treekenizer_set = #Order matters!
+const c_treekenizer_set = #Order matters!
     {#Comments, note that they dont require further treekenizing.
      ("/*", "*/", ({},{})),("//", "\n", ({},{})),("#","\n", ({},{})), 
      #Parentheses-like
@@ -29,7 +29,7 @@ c_treekenizer_set = #Order matters!
 #     bin_el("||"),bin_el("&&"),bin_el("!"),
 #     bin_el("|"), bin_el("&"), bin_el("~"),
      bin_el(":"), bin_el("case")}
-c_not_incorrect = {")","]","}","*/"} #These shouldnt happen early.
+const c_not_incorrect = {")","]","}","*/"} #These shouldnt end early.
 
 c_parse_top(s::IOStream) = c_parse_top(ConvenientStream(s))
 function c_parse_top(s::ConvenientStream)
@@ -171,6 +171,11 @@ type CExpr
     tp
 end
 
+type CBody
+    expr
+    body
+end
+
 type CStruct
     name::Symbol
     body
@@ -254,7 +259,6 @@ function c_parse_type(arr::Array{Any,1})
         "void" : Void
         
         if "struct" | "union"
-            
             i,name = (isa(arr[2], String) ? (3,symbol(arr[2])) : 
                                             (2,:unnamed))
             retval(body) = (arr[1]=="struct" ? CStruct(name,body) : 
@@ -335,17 +339,23 @@ type CHash #TODO bad name.
     thing
 end
 
-function c_parse_top{T}(arr::Array{T,1})
+#Just handles whitespace and comments.
+function c_top_prepare(arr::Array)
     arr = split_flatten(arr, " \t\n")
     while !isempty(arr) && isa(arr[1], TExpr)
         assert(contains(["#","//","/*"], arr[1].head))
-        if arr[1].head=="#"
+        if arr[1].head=="#" #TODO do want it..
             return CHash(arr[1],c_parse_top(arr[2:]))
         end
         arr = arr[2:]
     end
-    if isempty(arr)
-        return
+    return arr
+end
+
+function c_parse_top(arr::Array)
+    arr = c_top_prepare(arr)
+    if isa(arr, CHash) || isempty(arr)
+        return arr
     end
     assert(isa(arr[1],String), arr)
     arr = split_pointers(arr, "*")
@@ -355,25 +365,32 @@ function c_parse_top{T}(arr::Array{T,1})
         return CTypedef(last_el, c_parse_type(arr[2:length(arr)-1]))
     end
     if isa(last_el, TExpr) 
-        if last_el.head=="("
-            i = length(arr)-1
-            name = arr[i]
-            if name == "__attribute__" #Dont want these at end, try again.
-                new_arr = append!(copy(arr[i:]), arr[1:i-1])
-                return c_parse_top(new_arr)
+        @case last_el.head begin
+            if "("
+                i = length(arr)-1
+                name = arr[i]
+                if name == "__attribute__" #Dont want these at end, try again.
+                    new_arr = append!(copy(arr[i:]), arr[1:i-1])
+                    return c_parse_top(new_arr)
+                end
+                assert(name!="")
+                type_arr,attr = strip_attribute(arr[1:i-1])
+                attr.thing = CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
+                return (isequal(attr.full, nothing) ? attr.thing : attr)
             end
-            assert(name!="")
-            type_arr,attr = strip_attribute(arr[1:i-1])
-            attr.thing = CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
-            return (isequal(attr.full, nothing) ? attr.thing : attr)
-        elseif last_el.head=="[" #TODO more robust..
-            pre_last = arr[length(arr)-1]
-            assert(isa(pre_last,String))
-            assert(length(last_el.body)==1 && isa(last_el.body[1],String) ||
-                   isempty(last_el.body))
-            return CVarType(symbol(pre_last), 
-                            CArr(c_parse_type(butlast(arr,2)),
-                                 isempty(last_el.body) ? 0 : parse_int(last_el.body[1])))
+            if "[" #TODO more robust..
+                pre_last = arr[length(arr)-1]
+                assert(isa(pre_last,String))
+                assert(length(last_el.body)==1 && isa(last_el.body[1],String) ||
+                       isempty(last_el.body))
+                return CVarType(symbol(pre_last), 
+                                CArr(c_parse_type(butlast(arr,2)),
+                                     isempty(last_el.body) ? 0 : parse_int(last_el.body[1])))
+            end
+            if "{"
+                #TODO structs, enums.(unions?)
+                return CBody(c_parse_top(butlast(arr)), last_el) #TODO, function bodies.
+            end
         end
     elseif isa(last_el, String)
         if length(arr)==2 && arr[1]=="struct"
@@ -388,7 +405,7 @@ end
 const default_try_cnt = 32
 
 #To C parsed, with function to do other stuff.
-function to_cexpr(from::IOStream, try_cnt::Integer, what::Function)
+function to_cexpr(from::ConvenientStream, try_cnt::Integer, what::Function)
     try_n=0
     while try_n<try_cnt
         got = c_parse_top(from)
@@ -396,16 +413,19 @@ function to_cexpr(from::IOStream, try_cnt::Integer, what::Function)
             try_n+=1
         else
             try_n=0
-             what(got)
+            what(from, got)
         end
     end
 end
+to_cexpr(from::IOStream, try_cnt::Integer, what::Function) = 
+    to_cexpr(ConvenientStream(from), try_cnt, what)
+
 to_cexpr(from::String, try_cnt::Integer, what::Function) =
     @with s=open(from,"r") to_cexpr(s, try_cnt,what)
 function to_cexpr{T}(from::Array{T,1}, try_cnt::Integer,what::Function)
     for el in from
         if !isequal(el, nothing)
-            what(el)
+            what(from, el)
         end
     end
 end

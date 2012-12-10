@@ -4,7 +4,7 @@ import Treekenize.*
 load("util/util.jl")
 import OJasper_Util.*
 
-load("options.jl")
+load("Options.jl")
 load("util/get_c.jl")
 load("c_parse.jl")
 

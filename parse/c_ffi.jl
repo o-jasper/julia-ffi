@@ -9,8 +9,8 @@
 
 #TODO make it a module, export needed stuff.
 
-import Base.*, OptionsMod.*
-import GetC.*
+using Base, OptionsMod
+using GetC
 
 #TODO more user control.
 type FFI_Info #info on how to FFI
@@ -117,21 +117,21 @@ end
 function ffi_type{T}(tp::Array{T,1}, info)
 #    assert( length(tp)==1, tp ) #Know no reason otherwise would happen.
     name = symbol(tp[1])
-    assert( has(info.tp_aliasses, name), "Referrering to nonexistent type? $name")
+    assert( has(info.tp_aliasses, name), "Referring to nonexistent type? $name")
     return name
 end
 
 #To FFI code in data from.
 function to_ffi{T}(from::T, info::FFI_Info, try_cnt::Integer)
     @collect begin
-        fun(x) = collect_non_nothing(ffi_top(x,info))
+        fun(stream, x) = collect_non_nothing(ffi_top(x,info))
         to_cexpr(from,try_cnt,fun)
     end
 end
 to_ffi{T}(from::T, info::FFI_Info) = to_ffi(from, info, default_try_cnt)
 
 #Inspect the thing and export the relevant symbol.
-function find_exported(thing)
+function find_exported(stream, thing)
     assert(isa(thing,Expr))
     args = thing.args
     @case thing.head begin
@@ -142,16 +142,17 @@ function find_exported(thing)
         if symbol("typealias") | symbol("type")
             return args[1]
         end
-        default : error("I dont like eating $thing (bug)")
+        default : error("I dont like eating $thing (bug)
+at $stream")
     end
 end
 
 #To (via ffi)pretty printed.
 function to_pprint{T}(from::T,info::FFI_Info, to::IOStream, try_cnt::Integer)
-    function fun(x)
+    function fun(stream, x)
         ffi = ffi_top(x, info)
         if !isequal(ffi, nothing)
-            println(to, "export $(find_exported(ffi))")
+            println(to, "export $(find_exported(stream, ffi))")
             pprint(to, ffi)
             println(to)
         end
