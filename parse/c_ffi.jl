@@ -84,14 +84,12 @@ function ffi_top(chash::CHash, info)
 end
 
 function ffi_pretop(expr::CTypedef, info)
-    if !isa(expr.name,String) #TODO what is it?
-        #TODO types for C functions.
-        return nothing
-    end
-    name = symbol(expr.name)
+    name = expr.name
     if isa(expr.tp, CStruct)
-        struct_elements = Expr(:block, map((el)->ffi_pretop(el,info), expr.tp.body), 
-                               Any)
+        struct_elements = 
+            Expr(:block, isequal(expr.tp.body, :reference) ? 
+                           {} : map((el)->ffi_pretop(el,info), expr.tp.body),
+                 Any)
         return Expr(symbol("type"), {name, struct_elements}, Any)
     else
         tp = ffi_type(expr.tp, info)
@@ -110,8 +108,10 @@ end
 
 ffi_arg(var::CVarType, info) = Expr(symbol("::"), {var.var, ffi_type(var.tp, info)},Any)
 
-ffi_pretop(expr::CVarType, info) = ffi_arg(expr,info)
-ffi_pretop(expr::CStruct, info)  = ffi_pretop(CTypedef(symbol("struct_$(expr.name)"),expr), info)
+ffi_pretop(expr::CVarType, info) = 
+    ffi_arg(expr,info)
+ffi_pretop(expr::CStruct, info)  = 
+    ffi_pretop(CTypedef(symbol("struct_$(expr.name)"),expr), info)
 #ffi_pretop(expr::CUnion
 #ffi_pretop(expr::CEnum)
 
@@ -135,6 +135,10 @@ function ffi_type(tp::CPointer, info)
 end
 #TODO
 ffi_type(tp::CArr,info) = :(Ptr{$(ffi_type(tp.tp,info))})
+
+function ffi_type(tp::CFunPtr, info)
+    :(FunPtr{$(tp.args), $(tp.ret), $(tp.level)})
+end
 
 function ffi_type(tp::CStruct, info)
     if isa(tp.body, Symbol)

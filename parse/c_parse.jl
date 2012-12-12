@@ -163,13 +163,19 @@ end
 
 type CExpr
     name
-    args
+    args #::Array
     tp
 end
 
 type CBody
     expr
     body
+end
+
+type CFunPtr
+    ret
+    args::Array
+    level::Int8
 end
 
 type CStruct
@@ -197,7 +203,7 @@ type CVarType
 end
 
 type CTypedef
-    name
+    name::Symbol
     tp
 end
 
@@ -357,8 +363,32 @@ function c_parse_top(arr::Array)
     arr = split_pointers(arr, "*")
     last_el = last(arr)
         
-    if arr[1]=="typedef"
-        return CTypedef(last_el, c_parse_type(arr[2:length(arr)-1]))
+    if arr[1]=="typedef" 
+        #TODO instead use regular `c_parse_top` and interpret that.
+        function handle_typedef(result::CVarType)
+            #println(result)
+            return CTypedef(result.var, result.tp)
+        end
+        #Pointer types
+        function handle_typedef(result::CExpr)
+            name = result.name
+            assert( isa(name, TExpr) )
+            assert( name.head == "(" && length(name.body)==1 )
+            str = name.body[1]
+            
+            ptr_level = 0 #Get depth of pointer.
+            strip_level = 1
+            while contains("* \t\n", str[strip_level])
+                ptr_level += (str[strip_level]=='*' ? 1 : 0)
+                strip_level+=1
+            end
+          #TODO CVartype(name,empty) means the name is the type, 
+          # deal with it here.
+            return CTypedef(symbol(str[strip_level:]),
+                            CFunPtr(result.tp, result.args, int8(ptr_level)))
+        end       
+        return handle_typedef(c_parse_top(arr[2:]))
+#        return CTypedef(last_el, c_parse_type(arr[2:length(arr)-1]))
     end
     if isa(last_el, TExpr) 
         @case last_el.head begin

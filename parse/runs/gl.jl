@@ -13,7 +13,7 @@ using PrettyPrint
 
 load("c_ffi.jl")
 
-@with s=open("gl.jl", "w") begin
+@with s=open("autoffi/gl.jl", "w") begin
     to_pprint("test/gl.h.e",s,
               @options on_file = "GL/gl.h" lib_file = "libGL" module_name = "AutoFFI_GL")
 end
