@@ -16,8 +16,8 @@ export ExpandingArray, ExpandingArray2d,
 
 #----no more module stuff.
 
-#TODO time to use the regular `reshape`..
-#A reshape that works. (until the julia one starts working again..)
+#TODO report on reshape? It is intended to have a constant size, but just change the
+# shape of the array? Docs say differently.
 function working_reshape{T}(arr::Array{T,1}, newlen::Integer)
   assert( length(arr) < newlen )
   ret = Array(T, newlen)
