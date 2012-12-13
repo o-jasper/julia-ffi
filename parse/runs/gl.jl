@@ -13,7 +13,11 @@ using PrettyPrint
 
 load("c_ffi.jl")
 
-@with s=open("autoffi/gl.jl", "w") begin
-    to_pprint("test/gl.h.e",s,
-              @options on_file = "GL/gl.h" lib_file = "libGL" module_name = "AutoFFI_GL")
+
+function gl_type_namer(name)
+    i,j = search("$name", "PROC") #Dont know what these are supposed to mean.
+    return (i>0 || j>0) ? nothing : name
 end
+
+ffi_header("GL/gl.h", 
+@options fun_namer = (name,args)->symbol(lowercase("$name")) type_namer = gl_type_namer)
