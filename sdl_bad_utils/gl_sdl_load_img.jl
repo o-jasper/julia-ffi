@@ -11,14 +11,11 @@ export IMG_Load, sdl_surface_w,sdl_surface_h
 
 #----no more module stuff.
 
-sdl_lib = dlopen("libSDL")
+#@get_c_fun :libSDL sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
+@get_c_fun :libSDL sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
 
-#@get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
-@get_c_fun sdl_lib sdl_free_surface SDL_FreeSurface(ptr::Ptr)::Void
-
-sdl_img_lib = dlopen("libSDL_image")
 IMG_Load(file::String) =
-    ccall(dlsym(sdl_img_lib, :IMG_Load), Ptr,(Ptr{Uint8},), bytestring(file))
+    ccall((:IMG_Load, :libSDL_image), Ptr,(Ptr{Uint8},), bytestring(file))
 
 gl_sdl_load_img_lib = load_so("sdl_bad_utils/gl_sdl_load_img.so")
 

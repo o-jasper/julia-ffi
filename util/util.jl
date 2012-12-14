@@ -8,8 +8,7 @@ module OJasper_Util
 # * With the ones that don't, do...
 using Base
 
-export isnothing,
-       @with,no_longer_with, 
+export @with,no_longer_with, 
        stream_from_string,find_index,
        last,thelast,butlast
 export @case_of, @case,@cond,
@@ -36,13 +35,12 @@ function find_file_from_dirs(name::String, dir_list::Array)
     return realpath(name)
 end
 
-
-#Depreciated. TODO remove.
-isnothing(thing) = isequal(thing,nothing)
+#TODO prefer it were stronger, for instance so with GL i can do 
+# @with scale(...) things() instead of glpushed()
 
 #Make and set a (local) variable and clean up transparently other.
 # Abstraction leak: doesn't clean up if returning in middle.
-# (Need unwind-protect)
+# (Need something like unwind-protect for that)
 macro with(setting, body)
   w_var = isa(setting,Expr) && is(setting.head,symbol("="))
  #Make a variable if none given.
@@ -64,7 +62,7 @@ end
 
 no_longer_with(stream::IOStream) = close(stream) #!
 
-#Makes a stream with a string.
+#Makes a stream with a string. #TODO `stream(str::String)` and `stream(cmd::Cmd)`
 function stream_from_string(string::String)
   s = memio(length(string))
   write(s, string)

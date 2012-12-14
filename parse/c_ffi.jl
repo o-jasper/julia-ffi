@@ -4,7 +4,7 @@
 #  This is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published
 #  by the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
+#  (at your option) any later version.o
 #
 
 #TODO make it a module, export needed stuff.
@@ -12,11 +12,11 @@
 using Base, OptionsMod
 using GetC, PrettyPrint
 
-#TODO more user control.
 type FFI_Info #info on how to FFI
     lib_var::Symbol #Variable with library.
     on_file::String
     
+#    thing_mod::Function #TODO hook on entire entries.
     fun_namer::Function
     type_namer::Function
     opts_fun::Function
@@ -236,6 +236,10 @@ first_upper(s::String) = "$(uppercase(s[1]))$(s[2:])"
 
 #Also detects header.
 function ffi_header(file::String, opts::Options)
+    @defaults opts mention_files = false
+    if mention_files
+        println(file)
+    end
     @defaults opts on_file = file try_cnt = default_try_cnt
     assert(on_file!="")
     @defaults opts lib_var = :lib
