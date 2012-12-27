@@ -63,7 +63,8 @@ also maybe Julia will/has already increased support for FFIing those..
  + manually created extra.
 
 # Licenses
-Are mentioned in the files. Some of it public domain, some is GPL.
+Are mentioned in the files. Some of it public domain, some is GPL, 
+stuff under `parse/` is under the MIT license.
 
 ## Author
 Jasper den Ouden
