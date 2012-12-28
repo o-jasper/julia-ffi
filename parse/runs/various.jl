@@ -1,3 +1,4 @@
+#NOTE: might aswell be under mess/
 
 load("treekenize.jl")
 using Treekenize
@@ -28,6 +29,7 @@ gl_opts = (@options info = info)
 #ffi_header("/usr/lib/gcc/x86_64-unknown-linux-gnu/4.7.1/include/stddef.h", gl_opts)
 #ffi_header("GL/glext.h", gl_opts)
 ffi_header("GL/gl.h", gl_opts)
+
 # ffi_header("GL/glu.h", gl_opts) #TODO GLUnurbs issue; handle plain structs better.
 
 #TODO assertion failed: Referring to nonexistent type? __fsid_t

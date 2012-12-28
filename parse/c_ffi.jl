@@ -6,9 +6,21 @@
 using Base, OptionsMod
 using GetC, PrettyPrint
 
+type FFI_FileInfo
+    deps::Array{String,1}
+    module_name::Symbol
+    seen_cnt::Int32
+
+    opts::Options
+end
+FFI_FileInfo(module_name::Symbol, opts::Options) =
+    FFI_FileInfo(Array(String,0), module_name, int32(0), opts)
+FFI_FileInfo(module_name::Symbol) = FFI_FileInfo(module_name, @options)
+
 type FFI_Info #info on how to FFI
     lib_var::Symbol #Variable with library.
-    on_file::String
+    on_file::FFI_FileInfo
+    on_file_name::String
     
 #    thing_mod::Function #TODO hook on entire entries.
     fun_namer::Function
@@ -16,27 +28,45 @@ type FFI_Info #info on how to FFI
     opts_fun::Function
     
     implied_files::Bool
-    mention_implied_files::Bool
-    seen_files::Dict{String,Bool} #Which files have been seen.
-    tp_aliasses::Dict{Symbol,Any}
+    mention_files::Bool
+    seen_files::Dict{String,FFI_FileInfo} #Which files have been seen.
+    tp_aliasses::Dict{Symbol,Any} 
     
     assert_seen::Bool
     ffi_p::Bool
     only_visibility
+
+    seen_cnt_limit::Int32
+end
+
+first_upper(s::String) = "$(uppercase(s[1]))$(s[2:])"
+default_module_namer(file::String) =
+    symbol(first_upper(last(split(file,"/"))))
+
+function ensure_file_info(info::FFI_Info, file::String)
+    if has(info.seen_files, file)
+        return ref(info.seen_files,file)
+    else
+        opts = info.opts_fun(file)
+        @defaults opts module_name = default_module_namer(file)
+        file_info = FFI_FileInfo(module_name,opts)
+        assign(info.seen_files, file_info, file)
+        return file_info
+    end
 end
 
 function FFI_Info(on_file::String, opts::Options) #TODO 'derive' from underlying FFI_Info.
     @defaults opts lib_var = :lib only_visibility= {:default} assert_seen=true
     @defaults opts fun_namer = (name,args)->name
     @defaults opts type_namer = identity
-    @defaults opts implied_files = true mention_implied_files = true
+    @defaults opts implied_files = true mention_files = true
     @defaults opts opts_fun = ((file)->@options)
     
-    return FFI_Info(lib_var, on_file, 
+    return FFI_Info(lib_var, FFI_FileInfo(:its_a_bug), on_file,
                     fun_namer,type_namer, opts_fun,
-                    implied_files,mention_implied_files, Dict{String,Bool}(), 
-                    Dict{Symbol,Any}(), 
-                    assert_seen,true,only_visibility)
+                    implied_files,mention_files, Dict{String,FFI_FileInfo}(),
+                    Dict{Symbol,Any}(),
+                    assert_seen,true,only_visibility, int32(1))
 end
 FFI_Info(on_file::String) = FFI_Info(on_file, @options)
 
@@ -55,17 +85,20 @@ function ffi_top(chash::CHash, info)
 # TODO assert integer, filename, integer,integer
     src_file = list[2]
     if expr.head=="#" && ends_with(src_file, ".h") #Some stuff from other files.
-        info.ffi_p = (src_file == info.on_file)
+        info.ffi_p = (src_file == info.on_file_name)
     end
     
   #Read files not seen before.(if enabled.
-    if info.implied_files && isfile(src_file) && !get(info.seen_files, src_file, false)
-        opts = info.opts_fun(src_file) #Hook produces new options.
-        if info.mention_implied_files
-            println(src_file)
-        end
-        @set_options opts info = info #TODO ..
-        ffi_header(src_file, opts)
+    if !has(info.seen_files, src_file)
+        #TODO assert nonexistent if that is the thing to do..
+        ensure_file_info(info, src_file)
+    end
+    at_file = ref(info.seen_files,src_file)
+    if info.implied_files && isfile(src_file) && 
+       at_file.seen_cnt < info.seen_cnt_limit
+
+        @set_options at_file.opts info = info #TODO ..
+        ffi_header(src_file, at_file.opts)
     end   
     return ffi_top(chash.thing, info)
 end
@@ -75,8 +108,7 @@ function ffi_pretop(expr::CTypedef, info)
     julia_name = info.type_namer(name)
     if is(julia_name, nothing)
         return nothing #Rejected.
-    end
-    if isa(expr.tp, CStruct)
+    elseif isa(expr.tp, CStruct)
         struct_elements = 
             Expr(:block, isequal(expr.tp.body, :reference) ? 
                            {} : map((el)->ffi_pretop(el,info), expr.tp.body),
@@ -139,7 +171,7 @@ function ffi_type(tp::CFunPtr, info)
         push(args, ffi_type((isa(a.tp,Array) && isempty(a.tp)) ? 
                             {a.var} : a.tp, info))
     end
-    :(FunPtr{$(args), $(tp.ret), $(tp.level)})
+    return :(FunPtr{$(args), $(tp.ret), $(tp.level)})
 end
 
 function ffi_type(tp::CStruct, info)
@@ -214,20 +246,44 @@ function stream_from_cmd(cmd::Cmd)
     stream_from_string(readall(cmd))
 end
 
+#Determine dependencies.
+ffi_determine_deps(thing) = Array(String,0)
+ffi_determine_deps(chash::CHash) = split(chash.note.body[1], "\"", true)[2]
+
+ffi_determine_deps(file::String, try_cnt) =
+    @with stream = open(file,"r") ffi_determine_deps(stream, try_cnt)
+
+function ffi_determine_deps(stream::IOStream, try_cnt)
+    list = Array(String,0)
+    fun(stream, x) = append!(list, ffi_determine_deps(x))
+    to_cexpr(stream,try_cnt,fun)
+    return list
+end
+ffi_determine_deps(file) = ffi_determine_deps(file, default_try_cnt)
+
+#Raw header maker.
 function _ffi_header(file::String, info, to::IOStream,
-                     module_name,lib_var, lib_file, try_cnt)
+                     lib_var, lib_file, try_cnt)
+    on_file_name = info.on_file_name
     on_file = info.on_file
+    module_name = on_file.module_name
 
 #TODO ... using other defintions too.. but dont know them on time..
-    println(to, "#Autogenerated, parameters: 
-
-module $module_name
-
+    print(to, "#Autogenerated, parameters:\n
+module $module_name\n
 #Autogenerated module of $file
 module $module_name
-using Base, GetC
-
-#Load library.\n") 
+using Base, GetC")
+#    on_file.deps
+    module_deps = Array(String,0)#ffi_determine_deps(file)
+    if !isempty(module_deps) #Other dependencies.
+        module_name_of(file::String) = ensure_file_info(info,file).module_name
+        print(to, "\nusing $(module_name_of(module_deps[1]))")
+        for el in module_deps[2:]
+            print(to, ", $(module_name_of(el))")
+        end
+    end
+    println(to,"\n\n#Load library.\n")
     pprint(to, :($lib_var = dlopen($lib_file)))
     println(to, "\nmacro g(name, c_fun) #Makes stuff shorter.
     :(@get_c_fun $lib_var \$name \$c_fun)
@@ -237,40 +293,43 @@ end") #TODO exporting it aswel even better.
 
     assert(isfile(file))
     @with from = stream_from_cmd(`gcc -E $file`) begin
-        info.on_file = file
+        info.on_file_name = file
+        info.on_file = ref(info.seen_files, file)
         to_pprint(from,info,to, default_try_cnt)
     end
     
     println(to, "\nend #module $module_name")
 
-    info.on_file = on_file #todo
+    info.on_file_name = on_file_name #todo
+    info.on_file = on_file
 end
-
-first_upper(s::String) = "$(uppercase(s[1]))$(s[2:])"
 
 #Also detects header.
 function ffi_header(file::String, opts::Options)
-    @defaults opts mention_files = false
-    if mention_files
-        println(file)
-    end
     @defaults opts on_file = file try_cnt = default_try_cnt
     assert(on_file!="")
     @defaults opts lib_var = :lib
     name = split(basename(file),".")[1]
     
     @defaults opts lib_file = "lib$name"
-    @defaults opts module_name = symbol(first_upper(name))
-    @defaults opts info = FFI_Info(on_file, opts)
-    info.on_file = on_file #Hrmm.
     
-    @defaults opts to_file = "autoffi/$module_name.jl"
+    @defaults opts info = assert(false) #FFI_Info(on_file, opts)
+    info.on_file_name = on_file #Hrmm.
+
+    file = (file[1]=='/' ? file : "/usr/include/$file") #Absolute or from /usr/include.
+    info.on_file = ensure_file_info(info, file)
+    info.on_file_name = file
+
+    info.on_file.seen_cnt += 1
+    if info.mention_files #Mention file and number of times seen.
+        println(file," (",info.on_file.seen_cnt,")")
+    end
     
-    assign(info.seen_files, true, file)
-    file = (file[1]=='/' ? file : "/usr/include/$file")
+    @defaults opts to_file = "autoffi/$(info.on_file.module_name).jl"
+    
     @with to = open(to_file,"w") begin
-        _ffi_header(file, info,to, 
-                    module_name,lib_var,lib_file, try_cnt)
+        _ffi_header(file, info,to,lib_var,lib_file, try_cnt)
     end
 end
+
 ffi_header(file::String) = ffi_header(file, @options)
