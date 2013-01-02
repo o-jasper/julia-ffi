@@ -22,17 +22,17 @@ export find_file_from_dirs
 #Similar to `find_in_path`, but that function seems to look in /src/ too.
 # `is_file_readable` giving me trouble with nonexistant directories.
 function find_file_from_dirs(name::String, dir_list::Array)
-    name[1] == '/' && return realpath(name)
-    isfile(name) && return realpath(name)
+    name[1] == '/' && return name
+    isfile(name) && return name
     for prefix in dir_list
 #     base = name #TODO more like `find_in_path`
 #        path = strcat(prefix,"/",base,"/src/",name) #Was in `find_in_path`, 
 # doesnt make sense to me. Also, `stat` doesnt like it.
 #        is_file_readable(path) && return realpath(path)
         path = strcat(prefix,"/",name)
-        is_file_readable(path) && return realpath(path)
+        is_file_readable(path) && return path
     end
-    return realpath(name)
+    return name
 end
 
 #TODO prefer it were stronger, for instance so with GL i can do 
