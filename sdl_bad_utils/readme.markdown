@@ -3,6 +3,10 @@ Note that it is sortah called 'bad utils' for a reason. They were
 convenient-ish when the parser didn't want to parse the SDL header file.
 But i hope it will, and then i might replace it.
 
+NOTE Robert Ennis' [SDL.jl](https://github.com/rennis250/SDL.jl) probably will.
+
+(Also note that `test/keyboard.jl` doubly registers if both arrow and asdw held down)
+
 # sdl_bad_utils functions:
 
 ### init_stuff(w=640,h=640)::Int32
