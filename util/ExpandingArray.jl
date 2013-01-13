@@ -4,6 +4,8 @@
 module ExpandingArrayModule
 #Expanding arrays with arbitrary setting of indices.
 
+#NOTE: can http://judy.sourceforge.net/ be used?
+
 using Base
 
 import Base.ref, Base.assign, Base.zero
