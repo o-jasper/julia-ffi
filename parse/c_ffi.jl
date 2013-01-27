@@ -13,11 +13,12 @@ type FFI_FileInfo
     #TODO element count and determining if systems are 'boring'?
     
     seen_cnt::Int32
+    element_cnt::Int32
 
     opts::Options
 end
 FFI_FileInfo(module_name::Symbol, opts::Options) =
-    FFI_FileInfo(Array(String,0), module_name, int32(0), opts)
+    FFI_FileInfo(Array(String,0), module_name, int32(0),int32(0), opts)
 FFI_FileInfo(module_name::Symbol) = FFI_FileInfo(module_name, @options)
 
 type FFI_Info #info on how to FFI
@@ -30,16 +31,17 @@ type FFI_Info #info on how to FFI
     type_namer::Function
     opts_fun::Function
     
-    implied_files::Bool
-    mention_files::Bool
+    implied_files::Bool #Whether to do dependencies.
+    mention_files::Bool #Whether to stdout the files as seen,
+    
     seen_files::Dict{String,FFI_FileInfo} #Which files have been seen.
     tp_aliasses::Dict{Symbol,Any} 
     
-    assert_seen::Bool
-    ffi_p::Bool
-    only_visibility
+    assert_seen::Bool #Assert things inputted have already been declared.
+    ffi_p::Bool #TODO .. what did this do?
+    only_visibility #Has to do with a declaration of visibility in the C header.
 
-    seen_cnt_limit::Int32
+    seen_cnt_limit::Int32 #How often to look at a file.
 end
 
 first_upper(s::String) = "$(uppercase(s[1]))$(s[2:])"
@@ -77,7 +79,13 @@ end
 FFI_Info(on_file::String) = FFI_Info(on_file, @options)
 
 #
-ffi_top{T}(expr::T, info) = (info.ffi_p ? ffi_pretop(expr,info) : nothing)
+function ffi_top{T}(expr::T, info) 
+    if info.ffi_p
+        info.on_file.element_cnt += 1
+        return ffi_pretop(expr,info) 
+    end
+end
+
 function ffi_top(chash::CHash, info)
     expr = chash.note
     assert(contains(["#", "//", "/*"], expr.head) && 
@@ -99,7 +107,7 @@ function ffi_top(chash::CHash, info)
         #TODO assert nonexistent if that is the thing to do..
         ensure_file_info(info, src_file)
     end
-    at_file = ref(info.seen_files,src_file)
+    at_file = ref(info.seen_files,src_file) #TODO to determine_deps
     if info.implied_files && isfile(src_file) && 
        at_file.seen_cnt < info.seen_cnt_limit
 
@@ -139,7 +147,8 @@ function ffi_pretop(expr::CExpr, info)
     return :(@g $julia_name $(Expr(:call, arglist,Any))::$(ffi_type(expr.tp, info)))
 end
 
-ffi_arg(var::CVarType, info) = Expr(symbol("::"), {var.var, ffi_type(var.tp, info)},Any)
+ffi_arg(var::CVarType, info) = 
+    Expr(symbol("::"), {var.var, ffi_type(var.tp, info)},Any)
 
 ffi_pretop(expr::CVarType, info) = 
     ffi_arg(expr,info)
@@ -215,8 +224,7 @@ end
 to_ffi{T}(from::T, info::FFI_Info) = to_ffi(from, info, default_try_cnt)
 
 #Inspect the thing and export the relevant symbol.
-function find_exported(stream, thing)
-    assert(isa(thing,Expr))
+function find_exported(stream, thing::Expr)
     args = thing.args
     @case thing.head begin
         if :macrocall
@@ -230,6 +238,7 @@ function find_exported(stream, thing)
 at $stream")
     end
 end
+find_exported(stream,thing) = println((:wut_find_exported,thing))
 
 #To (via ffi)pretty printed.
 function to_pprint{T}(from::T,info::FFI_Info, to::IOStream, try_cnt::Integer)
