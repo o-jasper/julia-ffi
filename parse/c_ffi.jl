@@ -3,10 +3,14 @@
 
 #TODO make it a module, export needed stuff.
 
+#TODO separate FFI_Info from the
+
 using Base, OptionsMod
 using GetC, PrettyPrint
 
 type FFI_FileInfo
+    path::String
+
     deps::Array{String,1}
     module_name::Symbol
 
@@ -17,9 +21,10 @@ type FFI_FileInfo
 
     opts::Options
 end
-FFI_FileInfo(module_name::Symbol, opts::Options) =
-    FFI_FileInfo(Array(String,0), module_name, int32(0),int32(0), opts)
-FFI_FileInfo(module_name::Symbol) = FFI_FileInfo(module_name, @options)
+FFI_FileInfo(path, module_name::Symbol, opts::Options) =
+    FFI_FileInfo(path, Array(String,0), module_name, int32(0),int32(0), opts)
+FFI_FileInfo(path, module_name::Symbol) = 
+    FFI_FileInfo(path, module_name, @options)
 
 type FFI_Info #info on how to FFI
     lib_var::Symbol #Variable with library.
@@ -38,7 +43,6 @@ type FFI_Info #info on how to FFI
     tp_aliasses::Dict{Symbol,Any} 
     
     assert_seen::Bool #Assert things inputted have already been declared.
-    ffi_p::Bool #TODO .. what did this do?
     only_visibility #Has to do with a declaration of visibility in the C header.
 
     seen_cnt_limit::Int32 #How often to look at a file.
@@ -54,11 +58,11 @@ function ensure_file_info(info::FFI_Info, file::String)
     if has(info.seen_files, file)
         return ref(info.seen_files,file)
     else
-        opts = info.opts_fun(file)
+        opts = info.opts_fun(file) #Many things like namings determined here.
         @defaults opts module_name = default_module_namer(file)
-        file_info = FFI_FileInfo(module_name,opts)
+        file_info = FFI_FileInfo(file, module_name,opts)
         assign(info.seen_files, file_info, file)
-        file_info.deps = determine_deps(file)
+        file_info.deps = determine_deps(file,info)
         return file_info
     end
 end
@@ -70,20 +74,18 @@ function FFI_Info(on_file::String, opts::Options) #TODO 'derive' from underlying
     @defaults opts implied_files = true mention_files = true
     @defaults opts opts_fun = ((file)->@options)
     
-    return FFI_Info(lib_var, FFI_FileInfo(:its_a_bug), on_file,
+    return FFI_Info(lib_var, FFI_FileInfo("",:its_a_bug), on_file,
                     fun_namer,type_namer, opts_fun,
                     implied_files,mention_files, Dict{String,FFI_FileInfo}(),
                     Dict{Symbol,Any}(),
-                    assert_seen,true,only_visibility, int32(1))
+                    assert_seen,only_visibility, int32(1))
 end
 FFI_Info(on_file::String) = FFI_Info(on_file, @options)
 
 #
 function ffi_top{T}(expr::T, info) 
-    if info.ffi_p
-        info.on_file.element_cnt += 1
-        return ffi_pretop(expr,info) 
-    end
+    info.on_file.element_cnt += 1
+    return ffi_pretop(expr,info) 
 end
 
 function ffi_top(chash::CHash, info)
@@ -95,25 +97,6 @@ function ffi_top(chash::CHash, info)
     if length(list)==1
         return
     end
-#    Are they always in the correct format for this? 
-# TODO assert integer, filename, integer,integer
-    src_file = list[2]
-    if expr.head=="#" && ends_with(src_file, ".h") #Some stuff from other files.
-        info.ffi_p = (src_file == info.on_file_name)
-    end
-    
-  #Read files not seen before.(if enabled.
-    if !has(info.seen_files, src_file)
-        #TODO assert nonexistent if that is the thing to do..
-        ensure_file_info(info, src_file)
-    end
-    at_file = ref(info.seen_files,src_file) #TODO to determine_deps
-    if info.implied_files && isfile(src_file) && 
-       at_file.seen_cnt < info.seen_cnt_limit
-
-        @set_options at_file.opts info = info #TODO ..
-        ffi_header(src_file, at_file.opts)
-    end   
     return ffi_top(chash.thing, info)
 end
 
@@ -262,29 +245,48 @@ function stream_from_cmd(cmd::Cmd)
 end
 
 #Determine dependencies.
-determine_deps(thing,b) = Array(String,0)
-function determine_deps(chash::CHash)
+determine_deps(thing,b,info) = Array(String,0)
+function determine_deps(chash::CHash,info)
     list = split(chash.note.body[1], "\"", true)
     if length(list)==1 || !isfile(list[2])
         return Array(String,0)
     end
-    ret = Array(String,0)
-    push(ret, list[2])
+    src_file = list[2]
+  #Read files not seen before.(if enabled.)
+    if !has(info.seen_files, src_file)
+        #TODO assert nonexistent if that is the thing to do..
+        ensure_file_info(info, src_file)
+    end
+    at_file = ref(info.seen_files, src_file) #TODO to determine_deps
+
+    if (info.implied_files && isfile(src_file) && 
+        at_file.seen_cnt < info.seen_cnt_limit &&
+        src_file != info.on_file.path)
+        
+        println(src_file, ", ", info.on_file.path)
+        
+        @set_options at_file.opts info = info #TODO ..
+        ffi_header(src_file, at_file.opts)
+    end 
+    ret = Array(String,0) #TODO rather use `?` notation.
+    if at_file.element_cnt > 0
+        push(ret, src_file)
+    end
     return ret
 end
 
-function determine_deps(file::String, try_cnt)
+function determine_deps(file::String, try_cnt,info)
     if isfile(file)
-        @with from = stream_from_cmd(`gcc -E $file`) determine_deps(from,file, try_cnt)
+        @with from = stream_from_cmd(`gcc -E $file`) determine_deps(from,file, try_cnt, info)
     else
         Array(String,0)
     end
 end
 
-function determine_deps(stream::IOStream,file::String, try_cnt)
+function determine_deps(stream::IOStream,file::String, try_cnt,info)
     list = Array(String,0)
     function fun(stream, x) 
-        for el in determine_deps(x)
+        for el in determine_deps(x, info)
             if !contains(list, el) && el!=file
                 push(list,el)
             end
@@ -294,7 +296,7 @@ function determine_deps(stream::IOStream,file::String, try_cnt)
     to_cexpr(stream,try_cnt,fun)
     return list
 end
-determine_deps(file) = determine_deps(file, default_try_cnt)
+determine_deps(file,info) = determine_deps(file, default_try_cnt,info)
 
 #Raw header maker.
 function _ffi_header(file::String, info, to::IOStream,
@@ -336,6 +338,7 @@ end") #TODO exporting it aswel even better.
     info.on_file = on_file
 end
 
+
 #Also detects header.
 function ffi_header(file::String, opts::Options)
     @defaults opts on_file = file try_cnt = default_try_cnt
@@ -350,17 +353,18 @@ function ffi_header(file::String, opts::Options)
 
     file = (file[1]=='/' ? file : "/usr/include/$file") #Absolute or from /usr/include.
     info.on_file = ensure_file_info(info, file)
+    
     info.on_file_name = file
-
     info.on_file.seen_cnt += 1
-    if info.mention_files #Mention file and number of times seen.
-        println(file," (",info.on_file.seen_cnt,")")
-    end
     
     @defaults opts to_file = "autoffi/$(info.on_file.module_name).jl"
     
     @with to = open(to_file,"w") begin
         _ffi_header(file, info,to,lib_var,lib_file, try_cnt)
+    end
+    if info.mention_files #Mention file and number of times seen.
+        println(file," (",info.on_file.element_cnt,", ", 
+                info.on_file.seen_cnt,")")
     end
 end
 
