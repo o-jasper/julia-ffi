@@ -1,9 +1,7 @@
-# Copyright (c) 2012 Jasper den Ouden, under the MIT license, 
+# Copyright (c) 2013 Jasper den Ouden, under the MIT license, 
 # see doc/mit.txt from the project directory.
 
 #TODO make it a module, export needed stuff.
-
-#TODO separate FFI_Info from the
 
 using Base, OptionsMod
 using GetC, PrettyPrint
@@ -94,15 +92,35 @@ function ffi_top{T}(expr::T, stuff::FFI_Stuff)
     return ffi_pretop(expr,stuff)
 end
 
+function may_ffi_header(src_file::String, stuff::FFI_Stuff)
+    info,opts  = stuff
+  #Read files not seen before.(if enabled.)
+    assert( has(info.seen_files, src_file), 
+           "Bug: Didnt see file in determining dependencies? File: $src_file" )
+    at_file = ref(info.seen_files, src_file) 
+
+    @stuffdefaults {implied_files, seen_cnt_limit, file}
+    file_info = on_file(stuff,file)
+    if (implied_files && isfile(src_file) && 
+        at_file.seen_cnt < seen_cnt_limit &&
+        src_file != file_info.path)
+        
+        ffi_header(stuff[1],at_file.opts)
+    end
+end
+
 function ffi_top(chash::CHash, stuff::FFI_Stuff)
     expr = chash.note
     assert(contains(["#", "//", "/*"], expr.head) && 
            length(expr.body)==1 && isa(expr.body[1],String), expr)
     
     list = split(expr.body[1], "\"", true)
-    if length(list)==1
-        return
+    src_file = list[2]
+    if length(list)==1 || !isfile(list[2])
+        return ffi_top(chash.thing, stuff)
     end
+    may_ffi_header(src_file, stuff)
+    
     return ffi_top(chash.thing, stuff)
 end
 
@@ -269,29 +287,17 @@ function determine_deps(chash::CHash, stuff::FFI_Stuff, try_cnt)
     if length(list)==1 || !isfile(list[2])
         return Array(String,0)
     end
-    src_file = list[2]
-    info,opts  = stuff
-  #Read files not seen before.(if enabled.)
-    if !has(info.seen_files, src_file)
-        #TODO assert nonexistent if that is the thing to do..
-        ensure_file_info(stuff, src_file)
-    end
-    at_file = ref(info.seen_files, src_file) #TODO to determine_deps
-
-    @stuffdefaults {implied_files, seen_cnt_limit, file}
-    file_info = on_file(stuff,file)
-    if (implied_files && isfile(src_file) && 
-        at_file.seen_cnt < seen_cnt_limit &&
-        src_file != file_info.path)
-        
-        println(src_file, ", ", file_info.path)
-        
-        ffi_header(stuff[1],at_file.opts)
-    end 
     ret = Array(String,0) #TODO rather use `?` notation.
+    src_file = list[2]
+
+    info,opts = stuff
+    ensure_file_info(stuff, src_file)
+    at_file = ref(info.seen_files, src_file) #TODO to determine_deps
+    
     if at_file.element_cnt > 0
         push(ret, src_file)
     end
+    append!(ret, determine_deps(chash.thing, stuff, try_cnt))
     return ret
 end
 
@@ -373,9 +379,8 @@ function ffi_header(info::FFI_Info, opts::Options)
     file_info.seen_cnt += 1
     
 #    @defaults opts to_file = "autoffi/$(file_info.module_name).jl"
-    if mention_files #Mention file and number of times seen.
-        println(file," (",file_info.element_cnt,", ", 
-                file_info.seen_cnt,")")
+    if mention_files #Mention file and number of times seen,
+        println("$file $(file_info.element_cnt,file_info.seen_cnt)")
     end    
     @with to = open(to_file_namer(file_info.module_name),"w") begin
         _ffi_header(file, stuff,to,lib_var,lib_file, try_cnt)
