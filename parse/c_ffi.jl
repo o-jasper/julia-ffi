@@ -69,6 +69,9 @@ default_file = ""
 #default_try_cnt = #Somewhere else.(think c_parse)
 default_lib_var = :lib
 
+default_ignore_particular = Dict{String,Bool}()
+default_ignore_start = ["/usr/lib/", "/usr/include/bits/"] 
+
 on_file(stuff::FFI_Stuff, file::String) = get(stuff[1].seen_files, file, nothing)
 
 function ensure_file_info(stuff::FFI_Stuff, file::String)
@@ -81,6 +84,7 @@ function ensure_file_info(stuff::FFI_Stuff, file::String)
         @defaults opts module_name = default_module_namer(file)
         file_info = FFI_FileInfo(file, module_name,opts)
         assign(info.seen_files, file_info, file)
+        println(file)
         file_info.deps = determine_deps(file,stuff)
         return file_info
     end
@@ -93,13 +97,13 @@ function ffi_top{T}(expr::T, stuff::FFI_Stuff)
 end
 
 function may_ffi_header(src_file::String, stuff::FFI_Stuff)
+    @stuffdefaults {implied_files, seen_cnt_limit, file }
     info,opts  = stuff
   #Read files not seen before.(if enabled.)
     assert( has(info.seen_files, src_file), 
            "Bug: Didnt see file in determining dependencies? File: $src_file" )
     at_file = ref(info.seen_files, src_file) 
 
-    @stuffdefaults {implied_files, seen_cnt_limit, file}
     file_info = on_file(stuff,file)
     if (implied_files && isfile(src_file) && 
         at_file.seen_cnt < seen_cnt_limit &&
@@ -278,9 +282,26 @@ function stream_from_cmd(cmd::Cmd)
     stream_from_string(readall(cmd))
 end
 
+function ignore_file_p(file::String, stuff::FFI_Stuff)
+    @stuffdefaults {ignore_particular, ignore_start}
+    if !get(ignore_particular, file, false)
+        return true
+    end
+    for el in ignore_start
+        if begins_with(file,el)
+            return true
+        end
+    end
+    return false
+end
+
+gcc_E(file::String, stuff::FFI_Stuff) =
+    (ignore_file_p(file,stuff) ? stream_from_string("") : 
+                                 stream_from_cmd(`gcc -E $file`))
+
 #Determine dependencies.
-determine_deps(file,stuff::FFI_Stuff) = determine_deps(file, stuff,default_try_cnt)
-determine_deps(file,stuff::FFI_Stuff,cnt) = Array(String,0)
+determine_deps(thing,stuff::FFI_Stuff) = determine_deps(thing, stuff,default_try_cnt)
+determine_deps(thing,stuff::FFI_Stuff,cnt) = Array(String,0)
 
 function determine_deps(chash::CHash, stuff::FFI_Stuff, try_cnt)
     list = split(chash.note.body[1], "\"", true)
@@ -303,9 +324,7 @@ end
 
 function determine_deps(file::String, stuff::FFI_Stuff, try_cnt)
     if isfile(file)
-        @with from = stream_from_cmd(`gcc -E $file`) begin
-            determine_deps(from,file, stuff, try_cnt)
-        end
+        @with from = gcc_E(file,stuff) determine_deps(from,file, stuff, try_cnt)
     else
         Array(String,0)
     end
@@ -353,10 +372,8 @@ end") #TODO exporting it aswel even better.
     println(to, "\n#AutoFFI body.\n")
 
     assert(isfile(file))
-    @with from = stream_from_cmd(`gcc -E $file`) begin
-        to_pprint(from,stuff,to, default_try_cnt)
-    end
-    
+    @with from = gcc_E(file,stuff) to_pprint(from,stuff,to, default_try_cnt)
+
     println(to, "\nend #module $module_name")
 end
 
