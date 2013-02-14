@@ -5,7 +5,7 @@ using Treekenize
 load("util/util.jl")
 using OJasper_Util
 
-load("Options.jl")
+require("Options")
 load("util/get_c.jl")
 load("c_parse.jl")
 

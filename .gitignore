@@ -1,3 +1,7 @@
 *.so
 .#*
-parse/mess/
+
+parse/mess/*.e
+parse/mess/*.e.mod
+util/test/result/
+parse/test/result/

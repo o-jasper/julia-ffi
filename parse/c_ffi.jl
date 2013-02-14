@@ -29,8 +29,7 @@ type FFI_Info #info on how to FFI
     tp_aliasses::Dict{Symbol,Any} 
 end
 
-FFI_Info() =
-    FFI_Info(Dict{String,FFI_FileInfo}(), Dict{Symbol,Any}())
+FFI_Info() = FFI_Info(Dict{String,FFI_FileInfo}(), Dict{Symbol,Any}())
 
 typealias FFI_Stuff (FFI_Info,Options)
 
@@ -70,9 +69,22 @@ default_file = ""
 default_lib_var = :lib
 
 default_ignore_particular = Dict{String,Bool}()
-default_ignore_start = ["/usr/lib/", "/usr/include/bits/"] 
+default_ignore_start = ["/usr/lib/", "/usr/include/bits/", "/usr/include/sys/"]
 
 on_file(stuff::FFI_Stuff, file::String) = get(stuff[1].seen_files, file, nothing)
+
+function ignore_file_p(file::String, stuff::FFI_Stuff)
+    @stuffdefaults {ignore_particular, ignore_start}
+    if get(ignore_particular, file, false)
+        return true
+    end
+    for el in ignore_start
+        if begins_with(file,el)
+            return true
+        end
+    end
+    return false
+end
 
 function ensure_file_info(stuff::FFI_Stuff, file::String)
     info,stuff_opts = stuff
@@ -84,7 +96,7 @@ function ensure_file_info(stuff::FFI_Stuff, file::String)
         @defaults opts module_name = default_module_namer(file)
         file_info = FFI_FileInfo(file, module_name,opts)
         assign(info.seen_files, file_info, file)
-        println(file)
+#        println(file)
         file_info.deps = determine_deps(file,stuff)
         return file_info
     end
@@ -221,7 +233,7 @@ function ffi_type(tp::CStruct, stuff::FFI_Stuff)
 end
 
 function ffi_type(tp::Array, stuff::FFI_Stuff)
-#    assert( length(tp)==1, tp ) #Know no reason otherwise would happen.
+    assert( length(tp)==1, tp ) #Know no reason otherwise would happen.
     name = symbol(tp[1])
     info,opts = stuff
     if has(info.tp_aliasses, name)
@@ -263,7 +275,7 @@ find_exported(stream,thing) = println((:wut_find_exported,thing))
 
 #To (via ffi)pretty printed.
 function to_pprint{T}(from::T,stuff::FFI_Stuff, to::IOStream, try_cnt::Integer)
-    function fun(stream, x)
+    function use_fun(stream, x)
         ffi = ffi_top(x, stuff)
         if !isequal(ffi, nothing)
             println(to, "export $(find_exported(stream, ffi))")
@@ -271,6 +283,13 @@ function to_pprint{T}(from::T,stuff::FFI_Stuff, to::IOStream, try_cnt::Integer)
             println(to)
         end
     end
+    function fun(stream, x::CAttribute)
+        if x.visibility==:default  #Ignore invisible stuff.
+            use_fun(stream,x)
+        end
+    end
+    fun(stream,x) = nothing #Ignore stuff with no visibility indicator.
+    fun(stream,x::CHash) = use_fun(stream,x) #Except the
     to_cexpr(from,try_cnt, fun)
     #return stuff
 end
@@ -282,23 +301,10 @@ function stream_from_cmd(cmd::Cmd)
     stream_from_string(readall(cmd))
 end
 
-function ignore_file_p(file::String, stuff::FFI_Stuff)
-    @stuffdefaults {ignore_particular, ignore_start}
-    if !get(ignore_particular, file, false)
-        return true
-    end
-    for el in ignore_start
-        if begins_with(file,el)
-            return true
-        end
-    end
-    return false
-end
-
-gcc_E(file::String, stuff::FFI_Stuff) =
-    (ignore_file_p(file,stuff) ? stream_from_string("") : 
-                                 stream_from_cmd(`gcc -E $file`))
-
+gcc_E(file::String, stuff::FFI_Stuff) = #TODO lets 'refurbish' completely.
+    stream_from_cmd(`clang-cc1 $file -ast-print -W `)
+    #stream_from_cmd(`gcc -E $file`)
+                                
 #Determine dependencies.
 determine_deps(thing,stuff::FFI_Stuff) = determine_deps(thing, stuff,default_try_cnt)
 determine_deps(thing,stuff::FFI_Stuff,cnt) = Array(String,0)
@@ -323,7 +329,7 @@ function determine_deps(chash::CHash, stuff::FFI_Stuff, try_cnt)
 end
 
 function determine_deps(file::String, stuff::FFI_Stuff, try_cnt)
-    if isfile(file)
+    if isfile(file) && !ignore_file_p(file, stuff)
         @with from = gcc_E(file,stuff) determine_deps(from,file, stuff, try_cnt)
     else
         Array(String,0)
@@ -389,16 +395,20 @@ function ffi_header(info::FFI_Info, opts::Options)
     
     @defaults opts lib_file = "lib$name"
   #Absolute or from /usr/include.
-    file = (file[1]=='/' ? file : "/usr/include/$file") 
-    @set_options opts file = file
-    
+    file = (file[1]=='/' ? file : "/usr/include/$file")
     file_info = ensure_file_info(stuff, file)
     file_info.seen_cnt += 1
     
+    if ignore_file_p(file,stuff)
+        println("IGNORED $file")
+        return nothing
+    end
+    
+    @set_options opts file = file
+    if mention_files
+        println("$(file_info.element_cnt,file_info.seen_cnt)")
+    end
 #    @defaults opts to_file = "autoffi/$(file_info.module_name).jl"
-    if mention_files #Mention file and number of times seen,
-        println("$file $(file_info.element_cnt,file_info.seen_cnt)")
-    end    
     @with to = open(to_file_namer(file_info.module_name),"w") begin
         _ffi_header(file, stuff,to,lib_var,lib_file, try_cnt)
     end

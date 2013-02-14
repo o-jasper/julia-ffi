@@ -120,6 +120,10 @@ function split_pointers(arr::Array{Any,1}, split_on)
     return list
 end
 
+function float_too_long()
+    Float64 #Need a Float128?
+end
+
 function c_parse_int_type(arr, signed,unsigned,long)
     assert( !(signed && unsigned) )
 
@@ -151,7 +155,21 @@ function c_parse_int_type(arr, signed,unsigned,long)
             assert( long==0 || arr[2]=="int" || arr[2]=="long", arr)
             c_parse_int_type(arr[2:], signed,unsigned, long+1)
         end
-        default : error("Invalid int")
+        if "double" #Apparently these can have a signed thing too.
+            assert(!signed && !unsigned)
+            (long>0 ? float_too_long() : Float64)
+        end
+        if "float"
+            assert(!signed && !unsigned)
+            @case long begin
+                0 : Float32
+                1 : Float64
+                if default 
+                    float_too_long()
+                end
+            end
+        end
+        default : error("Invalid int; $arr")
     end
 end
 
@@ -208,7 +226,8 @@ function c_parse_type(arr::Array{Any,1})
     while true
         @case arr[1] begin
             if "__attribute__"
-                error("__attribute__ should have been stripped at this point.")
+                error("__attribute__ should have been stripped at this point. 
+                      $(arr[1]),$(arr[2]),$(arr[3]), $(arr[4:])")
             end
             "__restrict" | "const" | "extern" | "inline" : (arr = arr[2:])
             default : break
@@ -222,14 +241,11 @@ function c_parse_type(arr::Array{Any,1})
     end
     
     i=length(arr) #Count pointers
-    while i>=1
-        if arr[i]!="*" 
-            break
-        end
+    while i>=1 && arr[i]=="*" #TODO improve.
         arr[i]=""
         i-=1
     end
-    assert(i!=0)
+    assert(i!=0, (i,arr))
     ptr_cnt = length(arr)-i
     arr = remove_isequal(arr, "")
     
@@ -295,39 +311,35 @@ end
 CAttribute() = CAttribute(:unknown,false,false, nothing,nothing)
 
 function strip_attribute(arr)
-    list = {}
     attr = CAttribute()
     i=1
-    while i <= length(arr)
-        if arr[i]=="__attribute__"
-            here = arr[i+1]
-            attr.full = here
-            if isa(here, TExpr)
-                assert( here.head=="(" && length(here.body)==1 &&
-                        here.body[1].head=="(" )
-                barr = here.body[1].body
-                for j = 1:length(barr) in
-                    @case barr[j] begin
-                        if "visibility" 
-                            assert(isa(barr[j+1], TExpr))
-                            assert(length(barr[j+1].body)==1)
-                            el= barr[j+1].body[1]
-                            assert(isa(el, String) && el[1]=='"' && last(el)=='"')
-                            attr.visibility = symbol(butlast(el)[2:])
-                        end
-                        "noreturn" : (attr.noreturn_p = true)
-                        "const"    : (attr.const_p = true)
-                        #"format" #Not sure if to 
+    while i <= length(arr) && arr[i]=="__attribute__"
+        here = arr[i+1]
+        attr.full = here
+        if isa(here, TExpr)
+            assert( here.head=="(" && length(here.body)==1 &&
+                   here.body[1].head=="(" )
+            barr = here.body[1].body
+            for j = 1:length(barr) in
+                @case barr[j] begin
+                    if "visibility" 
+                        assert(isa(barr[j+1], TExpr))
+                        assert(length(barr[j+1].body)==1)
+                        el= barr[j+1].body[1]
+                        assert(isa(el, String) && el[1]=='"' && last(el)=='"')
+                        attr.visibility = symbol(butlast(el)[2:])
                     end
+                    "noreturn" : (attr.noreturn_p = true)
+                    "const"    : (attr.const_p = true)
+                    #"format" #Not sure if to 
                 end
             end
-            i+=2
-        else
-            push(list, arr[i])
-            i+=1;
         end
+        i+=2
     end
-    return list, attr
+    assert(!contains(arr[i:], "__attribute__"), 
+           "At this point attributes should be gone; $(arr[i:])")
+    return arr[i:], attr
 end
 
 type CHash #TODO bad name.
@@ -345,6 +357,15 @@ function c_top_prepare(arr::Array)
     return arr
 end
 
+function c_body_i(arr::Array)
+    for i = 1:length(arr)
+        if isa(arr[i], TExpr) && arr[i].head=="{"
+            return i
+        end
+    end
+    return 0 #Indicates no body found
+end
+
 function c_parse_top(arr::Array)
     arr = c_top_prepare(arr)
     if isa(arr, CHash)
@@ -353,11 +374,29 @@ function c_parse_top(arr::Array)
     if isempty(arr)
         return nothing
     end
-    assert(isa(arr[1],String), arr)
+    assert(isa(arr[1],String), arr) #Other cases done by c_top_prepare.
+
     arr = split_pointers(arr, "*")
     last_el = last(arr)
         
-    if arr[1]=="typedef" 
+    body_i = c_body_i(arr)
+    
+    i = length(arr)-1
+    if body_i!=0 #Currently bodies are skipped, will want to use them in case of structs.
+        if arr[1]=="typedef"
+            return c_parse_top(arr[body_i+2:])
+        end
+        return c_parse_top(arr[body_i+1:])
+    elseif isa(last_el, TExpr) && last_el.head=="(" && arr[i]=="__attribute__"
+        #Put attributes in front.
+        new_arr = append!(copy(arr[i:]), arr[1:i-1]) 
+        return c_parse_top(new_arr)
+    elseif arr[1]=="__attribute__"
+        assert( isa(arr[2], TExpr) && arr[2].head=="(" )
+        rest_arr,attr = strip_attribute(arr)
+        attr.thing = c_parse_top(rest_arr)
+        return (isequal(attr.full, nothing) ? attr.thing : attr)
+    elseif arr[1]=="typedef" 
         #TODO instead use regular `c_parse_top` and interpret that.
         function handle_typedef(result::CVarType)
             #println(result)
@@ -383,33 +422,24 @@ function c_parse_top(arr::Array)
         end       
         return handle_typedef(c_parse_top(arr[2:]))
 #        return CTypedef(last_el, c_parse_type(arr[2:length(arr)-1]))
-    end
-    if isa(last_el, TExpr) 
+    elseif isa(last_el, TExpr) 
         @case last_el.head begin
             if "("
                 i = length(arr)-1
                 name = arr[i]
-                if name == "__attribute__" #Dont want these at end, try again.
-                    new_arr = append!(copy(arr[i:]), arr[1:i-1])
-                    return c_parse_top(new_arr)
-                end
-                assert(name!="")
-                type_arr,attr = strip_attribute(arr[1:i-1])
-                attr.thing = CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
-                return (isequal(attr.full, nothing) ? attr.thing : attr)
+                assert( name != "__attribute__")
+                type_arr = arr[1:i-1]
+                return CExpr(name, c_parse_args(last_el.body), c_parse_type(type_arr))
             end
             if "[" #TODO more robust..
                 pre_last = arr[length(arr)-1]
                 assert(isa(pre_last,String))
                 assert(length(last_el.body)==1 && isa(last_el.body[1],String) ||
-                       isempty(last_el.body))
+                       isempty(last_el.body),
+                       "$last_el\n $arr") #TODO what does it test?
                 return CVarType(symbol(pre_last), 
                                 CArr(c_parse_type(butlast(arr,2)),
                                      isempty(last_el.body) ? 0 : parse_int(last_el.body[1])))
-            end
-            if "{"
-                #TODO structs, enums.(unions?)
-                return CBody(c_parse_top(butlast(arr)), last_el) #TODO, function bodies.
             end
         end
     elseif isa(last_el, String)
